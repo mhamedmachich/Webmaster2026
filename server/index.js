@@ -54,6 +54,69 @@ app.use(cookieParser());
 app.use(rateLimit({ windowMs:15 * 60 * 1000, limit:300, standardHeaders:true, legacyHeaders:false }));
 
 const authLimiter = rateLimit({ windowMs:15 * 60 * 1000, limit:25, standardHeaders:true, legacyHeaders:false });
+const writeLimiter = rateLimit({ windowMs:60 * 1000, limit:60, standardHeaders:true, legacyHeaders:false });
+
+const BOT_USERS = [
+  {
+    id:"bot-resource-navigator",
+    name:"Avery Compass",
+    email:"avery@communitycompass.local",
+    handle:"averycompass",
+    role:"Verified Resource Navigator",
+    location:"Middletown, Delaware",
+    bio:"Sharing verified resource updates, service reminders, and local support tips.",
+    interests:["Resources", "Housing", "Food"],
+    avatarImage:"/avatars/avatar-1.svg",
+    bannerGradient:"linear-gradient(135deg, #0B1F3A, #1D9E75 58%, #EF9F27)",
+    accentColor:"#1D9E75",
+    emailVerified:true,
+    verified:true,
+    isBot:true,
+    createdAt:new Date(Date.now() - 1000 * 60 * 60 * 24 * 20).toISOString(),
+  },
+  {
+    id:"bot-volunteer-lead",
+    name:"Maya Service",
+    email:"maya@communitycompass.local",
+    handle:"mayaservice",
+    role:"Verified Volunteer Lead",
+    location:"New Castle County",
+    bio:"Posting volunteer openings, service recaps, and student leadership opportunities.",
+    interests:["Volunteering", "Events", "Students"],
+    avatarImage:"/avatars/avatar-2.svg",
+    bannerGradient:"linear-gradient(135deg, #534AB7, #378ADD)",
+    accentColor:"#378ADD",
+    emailVerified:true,
+    verified:true,
+    isBot:true,
+    createdAt:new Date(Date.now() - 1000 * 60 * 60 * 24 * 18).toISOString(),
+  },
+  {
+    id:"bot-student-hub",
+    name:"Jordan Student Hub",
+    email:"jordan@communitycompass.local",
+    handle:"studenthub",
+    role:"Verified Student Support",
+    location:"Appoquinimink Area",
+    bio:"Highlighting tutoring, library spaces, school support, and youth programs.",
+    interests:["Student Support", "Tutoring", "Youth"],
+    avatarImage:"/avatars/avatar-3.svg",
+    bannerGradient:"linear-gradient(135deg, #EF9F27, #D85A30)",
+    accentColor:"#EF9F27",
+    emailVerified:true,
+    verified:true,
+    isBot:true,
+    createdAt:new Date(Date.now() - 1000 * 60 * 60 * 24 * 16).toISOString(),
+  },
+];
+
+const BOT_MESSAGES = [
+  ["Resource update", "Food Bank of Delaware remains a strong first stop for pantry-style support. Use the Resource Finder to compare food, SNAP, and family support listings."],
+  ["Volunteer win", "A local service team filled several event roles this week. If you want to help, check Volunteering and filter for roles that match your availability."],
+  ["Student support", "Library learning spaces are useful when students need Wi-Fi, quiet study areas, public computers, or youth programs after school."],
+  ["Event recap", "Resume workshops are one of the clearest ways to turn community support into action. Save events you care about so they appear in your action plan."],
+  ["Question", "What resource category should Community Compass expand next: childcare, transportation, disability services, or veteran support?"],
+];
 
 const signupSchema = z.object({
   name: z.string().min(2).max(80),
@@ -62,6 +125,21 @@ const signupSchema = z.object({
   role: z.string().max(80).default("Community Member"),
   location: z.string().max(100).default("Middletown, Delaware"),
   interests: z.array(z.string().max(50)).max(12).default([]),
+});
+
+const profileSchema = z.object({
+  name: z.string().min(2).max(80),
+  handle: z.string().min(2).max(24).regex(/^[a-z0-9_]+$/),
+  role: z.string().max(80).default("Community Member"),
+  location: z.string().max(100).default("Middletown, Delaware"),
+  bio: z.string().max(220).default(""),
+  website: z.string().max(180).default(""),
+  interests: z.array(z.string().max(50)).max(12).default([]),
+  avatarImage: z.string().max(250000).default(""),
+  avatarGradient: z.string().max(120).default("linear-gradient(135deg, #0B1F3A, #1D9E75)"),
+  bannerImage: z.string().max(250000).default(""),
+  bannerGradient: z.string().max(160).default("linear-gradient(135deg, #0B1F3A, #1D9E75 58%, #EF9F27)"),
+  accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#1D9E75"),
 });
 
 const loginSchema = z.object({
@@ -105,8 +183,27 @@ async function ensureDb() {
   try {
     await fs.access(dbPath);
   } catch {
-    await fs.writeFile(dbPath, JSON.stringify({ users:[], posts:[] }, null, 2));
+    await fs.writeFile(dbPath, JSON.stringify({ users:[], posts:[], meta:{} }, null, 2));
   }
+  const db = JSON.parse(await fs.readFile(dbPath, "utf8"));
+  db.users ||= [];
+  db.posts ||= [];
+  db.meta ||= {};
+  let changed = false;
+  for (const bot of BOT_USERS) {
+    if (!db.users.some(user => user.id === bot.id)) {
+      db.users.push({ ...bot, passwordHash:"bot-account" });
+      changed = true;
+    }
+  }
+  if (db.posts.length === 0) {
+    db.posts.push(...BOT_MESSAGES.slice(0, 3).map(([category, text], index) => {
+      const bot = BOT_USERS[index % BOT_USERS.length];
+      return buildPost(bot, { category, text, attachments:[] }, Date.now() - (index + 1) * 1000 * 60 * 18);
+    }));
+    changed = true;
+  }
+  if (changed) await writeDb(db);
 }
 
 async function readDb() {
@@ -122,6 +219,46 @@ function publicUser(user) {
   if (!user) return null;
   const { passwordHash, ...safeUser } = user;
   return safeUser;
+}
+
+function makeHandle(name, email) {
+  const base = (name || email.split("@")[0] || "member").toLowerCase().replace(/[^a-z0-9_]+/g, "").slice(0, 20);
+  return base || "member";
+}
+
+function buildPost(user, payload, timestamp = Date.now()) {
+  return {
+    id:nanoid(),
+    authorId:user.id,
+    authorName:user.name,
+    authorHandle:user.handle || makeHandle(user.name, user.email || "member@example.com"),
+    authorRole:user.role,
+    avatarGradient:user.avatarGradient,
+    avatarImage:user.avatarImage || "",
+    accentColor:user.accentColor || "#1D9E75",
+    verified:Boolean(user.emailVerified || user.verified),
+    isBot:Boolean(user.isBot),
+    category:payload.category,
+    text:payload.text.trim(),
+    attachments:payload.attachments || [],
+    likedBy:[],
+    comments:[],
+    createdAt:new Date(timestamp).toISOString(),
+  };
+}
+
+function maybeAddBotPost(db) {
+  const lastBotPost = db.posts
+    .filter(post => post.isBot)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+  const enoughTimePassed = !lastBotPost || Date.now() - new Date(lastBotPost.createdAt).getTime() > 1000 * 45;
+  if (!enoughTimePassed) return false;
+  const index = Number(db.meta.botIndex || 0);
+  const [category, text] = BOT_MESSAGES[index % BOT_MESSAGES.length];
+  const bot = BOT_USERS[index % BOT_USERS.length];
+  db.posts.push(buildPost(bot, { category, text, attachments:[] }));
+  db.meta.botIndex = index + 1;
+  return true;
 }
 
 function setAuthCookie(res, user) {
@@ -192,11 +329,21 @@ app.post("/api/auth/signup", authLimiter, async (req, res) => {
     id:nanoid(),
     name:payload.name,
     email,
+    handle:makeHandle(payload.name, email),
     passwordHash:await bcrypt.hash(payload.password, 12),
     role:payload.role,
     location:payload.location,
+    bio:"Exploring local resources and community opportunities.",
+    website:"",
     interests:payload.interests,
     avatarGradient:"linear-gradient(135deg, #0B1F3A, #1D9E75)",
+    avatarImage:"/avatars/avatar-default.svg",
+    bannerGradient:"linear-gradient(135deg, #0B1F3A, #1D9E75 58%, #EF9F27)",
+    bannerImage:"",
+    accentColor:"#1D9E75",
+    emailVerified:false,
+    verified:false,
+    isBot:false,
     createdAt:new Date().toISOString(),
   };
 
@@ -230,35 +377,41 @@ app.get("/api/auth/me", requireAuth, (req, res) => {
 
 app.get("/api/community/posts", async (_req, res) => {
   const db = await readDb();
+  if (maybeAddBotPost(db)) await writeDb(db);
   res.json({ posts:db.posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) });
 });
 
-app.post("/api/community/posts", requireAuth, async (req, res) => {
+app.patch("/api/users/me/profile", writeLimiter, requireAuth, async (req, res) => {
+  const payload = profileSchema.parse(req.body);
+  const handleTaken = req.db.users.some(user => user.id !== req.user.id && user.handle === payload.handle);
+  if (handleTaken) return res.status(409).json({ error:"That handle is already taken." });
+
+  Object.assign(req.user, payload);
+  await writeDb(req.db);
+  res.json({ user:publicUser(req.user) });
+});
+
+app.post("/api/auth/verify-email", writeLimiter, requireAuth, async (req, res) => {
+  req.user.emailVerified = true;
+  req.user.verified = true;
+  await writeDb(req.db);
+  res.json({ user:publicUser(req.user), verified:true });
+});
+
+app.post("/api/community/posts", writeLimiter, requireAuth, async (req, res) => {
   const payload = postSchema.parse(req.body);
   if (!payload.text.trim() && payload.attachments.length === 0) {
     return res.status(400).json({ error:"A post needs text or media." });
   }
 
-  const post = {
-    id:nanoid(),
-    authorId:req.user.id,
-    authorName:req.user.name,
-    authorRole:req.user.role,
-    avatarGradient:req.user.avatarGradient,
-    category:payload.category,
-    text:payload.text.trim(),
-    attachments:payload.attachments,
-    likedBy:[],
-    comments:[],
-    createdAt:new Date().toISOString(),
-  };
+  const post = buildPost(req.user, payload);
 
   req.db.posts.push(post);
   await writeDb(req.db);
   res.status(201).json({ post });
 });
 
-app.post("/api/community/posts/:postId/like", requireAuth, async (req, res) => {
+app.post("/api/community/posts/:postId/like", writeLimiter, requireAuth, async (req, res) => {
   const post = req.db.posts.find(item => item.id === req.params.postId);
   if (!post) return res.status(404).json({ error:"Post not found." });
 
@@ -270,7 +423,7 @@ app.post("/api/community/posts/:postId/like", requireAuth, async (req, res) => {
   res.json({ post });
 });
 
-app.post("/api/community/posts/:postId/comments", requireAuth, async (req, res) => {
+app.post("/api/community/posts/:postId/comments", writeLimiter, requireAuth, async (req, res) => {
   const payload = commentSchema.parse(req.body);
   const post = req.db.posts.find(item => item.id === req.params.postId);
   if (!post) return res.status(404).json({ error:"Post not found." });
@@ -278,6 +431,8 @@ app.post("/api/community/posts/:postId/comments", requireAuth, async (req, res) 
   const comment = {
     id:nanoid(),
     authorName:req.user.name,
+    authorHandle:req.user.handle,
+    verified:Boolean(req.user.emailVerified || req.user.verified),
     text:payload.text.trim(),
     createdAt:new Date().toISOString(),
   };

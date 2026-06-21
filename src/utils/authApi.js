@@ -9,8 +9,10 @@ export async function authenticateWithApi(mode, form) {
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    const error = new Error(body.error || "Authentication failed.");
+    const recoverable = response.status === 404 || response.status >= 500;
+    const error = new Error(body.error || (recoverable ? "Secure API unavailable." : "Could not authenticate with the secure API."));
     error.status = response.status;
+    error.recoverable = recoverable;
     throw error;
   }
 

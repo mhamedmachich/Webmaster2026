@@ -93,7 +93,19 @@ export default function App() {
     if (filters.accessibility && !(r.transit || r.format.includes("Phone") || r.format.includes("Online"))) return false;
     if (filters.transit && !r.transit) return false;
     if (filters.savedOnly && !savedIds.has(r.id)) return false;
-    if (resourceSearch && !r.title.toLowerCase().includes(resourceSearch.toLowerCase()) && !r.desc.toLowerCase().includes(resourceSearch.toLowerCase()) && !r.category.toLowerCase().includes(resourceSearch.toLowerCase())) return false;
+    if (resourceSearch) {
+      const haystack = [
+        r.title,
+        r.desc,
+        r.category,
+        r.location,
+        r.format,
+        r.language,
+        ...(r.tags || []),
+        ...(r.audience || []),
+      ].join(" ").toLowerCase();
+      if (!haystack.includes(resourceSearch.toLowerCase())) return false;
+    }
     return true;
   });
 
@@ -127,22 +139,26 @@ export default function App() {
     return <HomePage nav={nav} quickHelp={quickHelp} toggleSave={toggleSave} savedIds={savedIds} actionCount={actionCount} setResourceSearch={setResourceSearch} />;
   };
 
+  const isAuthPage = page === "auth";
+
   return (
     <div ref={topRef} className={accessibilityMode ? "access-mode" : ""} style={{ fontFamily:"'Inter',-apple-system,sans-serif", minHeight:"100vh", background:C.g50 }}>
-      <Navbar
-        page={page}
-        nav={nav}
-        accessibilityMode={accessibilityMode}
-        onToggleAccessibility={() => {
-          setAccessibilityMode(v => !v);
-          toast_(!accessibilityMode ? "Readability mode enabled" : "Readability mode disabled", !accessibilityMode ? C.teal : C.g500);
-        }}
-        currentUser={currentUser}
-        onLogout={logout}
-      />
+      {!isAuthPage && (
+        <Navbar
+          page={page}
+          nav={nav}
+          accessibilityMode={accessibilityMode}
+          onToggleAccessibility={() => {
+            setAccessibilityMode(v => !v);
+            toast_(!accessibilityMode ? "Readability mode enabled" : "Readability mode disabled", !accessibilityMode ? C.teal : C.g500);
+          }}
+          currentUser={currentUser}
+          onLogout={logout}
+        />
+      )}
       {activePage()}
-      <ActionPlan savedResources={savedResources} registeredEvents={registeredEvents} appliedRoles={appliedRoles} nav={nav} />
-      <Footer nav={nav} />
+      {!isAuthPage && <ActionPlan savedResources={savedResources} registeredEvents={registeredEvents} appliedRoles={appliedRoles} nav={nav} />}
+      {!isAuthPage && <Footer nav={nav} />}
       <Toast toast={toast} />
     </div>
   );

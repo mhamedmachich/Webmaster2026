@@ -47,7 +47,7 @@ export default function AuthPage({ onAuth, nav, toast_ }) {
       try {
         user = await authenticateWithApi(mode, form);
       } catch (apiError) {
-        if (apiError.status) throw apiError;
+        if (apiError.status && !apiError.recoverable) throw apiError;
         usedLocalFallback = true;
         user = mode === "signup"
           ? await signupLocalAccount(form)
@@ -57,7 +57,7 @@ export default function AuthPage({ onAuth, nav, toast_ }) {
       onAuth(user);
       toast_(
         usedLocalFallback
-          ? "Signed in with local demo storage. Start the API for secured server auth."
+          ? "Signed in offline. Start the API for shared community accounts."
           : mode === "signup" ? "Account created through the secure API." : "Signed in through the secure API.",
         C.teal
       );
@@ -69,102 +69,148 @@ export default function AuthPage({ onAuth, nav, toast_ }) {
   };
 
   return (
-    <div className="auth-page" style={{ animation:"fadeIn 0.3s ease" }}>
-      <section className="auth-hero">
-        <div className="auth-card">
-          <div className="auth-card__visual">
-            <div className="premium-eyebrow">
-              <VisualIcon name="users" size={15} />
-              Secure Member Access
+    <main className="auth-standalone">
+      <div className="auth-standalone__bg" aria-hidden="true" />
+      <div className="auth-standalone__grid" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+
+      <header className="auth-topbar">
+        <button className="auth-brand-lockup" onClick={() => nav("home")} aria-label="Back to Community Compass home">
+          <img src="/brand/community-compass-logo.png" alt="" />
+          <span>
+            <strong>Community Compass</strong>
+            <small>Secure community workspace</small>
+          </span>
+        </button>
+        <div className="auth-topbar__actions">
+          <button onClick={() => nav("community")}>Community</button>
+          <button onClick={() => nav("home")}>Back to site</button>
+        </div>
+      </header>
+
+      <section className="auth-stage" aria-label="Community Compass login and signup">
+        <div className="auth-story">
+          <div className="premium-eyebrow auth-eyebrow">
+            <VisualIcon name="users" size={15} />
+            Member Access
+          </div>
+          <h1>Step into your community command center.</h1>
+          <p>
+            Create a profile, join the community board, share updates, save opportunities,
+            and keep your local action plan connected across Community Compass.
+          </p>
+
+          <div className="auth-scene-card">
+            <img src="/brand/community-login-scene.jpg" alt="Illustrated community neighborhood with people working together" />
+            <div className="auth-scene-card__shine" />
+            <div className="auth-floating-note auth-floating-note--one">
+              <VisualIcon name="check" size={16} />
+              <span>Verified community posts</span>
             </div>
-            <h1>Sign in to build your community profile.</h1>
-            <p>
-              The frontend account system works locally for the TSA demo. The included backend
-              scaffold is designed for hardened API auth, protected cookies, validation, and email.
-            </p>
-            <div className="auth-proof-grid">
-              {[
-                ["Protected API Ready", "Server validates requests with Zod, rate limits, and secure headers."],
-                ["Private Demo Mode", "No third-party keys are exposed in the browser."],
-                ["Community Tools", "Profiles, posts, likes, comments, and media previews are available now."],
-              ].map(([title, text]) => (
-                <div key={title}>
-                  <VisualIcon name="check" size={18} />
-                  <strong>{title}</strong>
-                  <span>{text}</span>
-                </div>
-              ))}
+            <div className="auth-floating-note auth-floating-note--two">
+              <VisualIcon name="message" size={16} />
+              <span>Profiles, comments, media</span>
+            </div>
+            <div className="auth-floating-note auth-floating-note--three">
+              <VisualIcon name="wrench" size={16} />
+              <span>API-ready security</span>
             </div>
           </div>
 
-          <form className="auth-form" onSubmit={submit}>
-            <div className="auth-switch" role="tablist" aria-label="Account mode">
-              <button type="button" className={mode === "signup" ? "is-active" : ""} onClick={() => setMode("signup")}>Create account</button>
-              <button type="button" className={mode === "login" ? "is-active" : ""} onClick={() => setMode("login")}>Log in</button>
-            </div>
-
-            {mode === "signup" && (
-              <>
-                <label>
-                  Display name
-                  <input value={form.name} onChange={event => update("name", event.target.value)} placeholder="Your name" autoComplete="name" />
-                </label>
-                <div className="auth-form__row">
-                  <label>
-                    Role
-                    <select value={form.role} onChange={event => update("role", event.target.value)}>
-                      <option>Community Member</option>
-                      <option>Student</option>
-                      <option>Volunteer</option>
-                      <option>Organizer</option>
-                      <option>Parent / Guardian</option>
-                    </select>
-                  </label>
-                  <label>
-                    Location
-                    <input value={form.location} onChange={event => update("location", event.target.value)} placeholder="City, State" />
-                  </label>
-                </div>
-              </>
-            )}
-
-            <label>
-              Email
-              <input value={form.email} onChange={event => update("email", event.target.value)} type="email" placeholder="you@example.com" autoComplete="email" />
-            </label>
-            <label>
-              Password
-              <input value={form.password} onChange={event => update("password", event.target.value)} type="password" placeholder="At least 8 characters recommended" autoComplete={mode === "signup" ? "new-password" : "current-password"} />
-            </label>
-
-            {mode === "signup" && (
-              <div>
-                <div className="auth-form__legend">Profile interests</div>
-                <div className="auth-interest-grid">
-                  {INTERESTS.map(interest => (
-                    <button
-                      type="button"
-                      key={interest}
-                      className={form.interests.includes(interest) ? "is-active" : ""}
-                      onClick={() => toggleInterest(interest)}
-                    >
-                      {interest}
-                    </button>
-                  ))}
-                </div>
+          <div className="auth-trust-strip">
+            {[
+              ["HTTP-only cookies", "Backend session option"],
+              ["Rate-limited API", "Brute-force protection"],
+              ["Local fallback", "TSA demo continuity"],
+            ].map(([title, text]) => (
+              <div key={title}>
+                <strong>{title}</strong>
+                <span>{text}</span>
               </div>
-            )}
-
-            <button className="premium-button premium-button--teal" disabled={busy} style={{ width:"100%" }}>
-              {busy ? "Working..." : mode === "signup" ? "Create profile" : "Log in"}
-            </button>
-
-            <button type="button" className="auth-secondary-action" onClick={() => nav("community")}>
-              Continue to community page
-            </button>
-          </form>
+            ))}
+          </div>
         </div>
+
+        <form className="auth-pro-panel" onSubmit={submit}>
+          <div className="auth-panel-orbit" aria-hidden="true">
+            <img src="/brand/community-compass-logo.png" alt="" />
+          </div>
+
+          <div className="auth-panel-heading">
+            <span>{mode === "signup" ? "Create account" : "Welcome back"}</span>
+            <h2>{mode === "signup" ? "Build your member profile." : "Log in to continue."}</h2>
+            <p>{mode === "signup" ? "Use this professional account surface for the community feed demo." : "Access your profile, posts, and saved community activity."}</p>
+          </div>
+
+          <div className="auth-switch" role="tablist" aria-label="Account mode">
+            <button type="button" className={mode === "signup" ? "is-active" : ""} onClick={() => setMode("signup")}>Sign up</button>
+            <button type="button" className={mode === "login" ? "is-active" : ""} onClick={() => setMode("login")}>Log in</button>
+          </div>
+
+          {mode === "signup" && (
+            <>
+              <label>
+                Display name
+                <input value={form.name} onChange={event => update("name", event.target.value)} placeholder="Your name" autoComplete="name" />
+              </label>
+              <div className="auth-form__row">
+                <label>
+                  Role
+                  <select value={form.role} onChange={event => update("role", event.target.value)}>
+                    <option>Community Member</option>
+                    <option>Student</option>
+                    <option>Volunteer</option>
+                    <option>Organizer</option>
+                    <option>Parent / Guardian</option>
+                  </select>
+                </label>
+                <label>
+                  Location
+                  <input value={form.location} onChange={event => update("location", event.target.value)} placeholder="City, State" />
+                </label>
+              </div>
+            </>
+          )}
+
+          <label>
+            Email
+            <input value={form.email} onChange={event => update("email", event.target.value)} type="email" placeholder="you@example.com" autoComplete="email" />
+          </label>
+          <label>
+            Password
+            <input value={form.password} onChange={event => update("password", event.target.value)} type="password" placeholder="At least 8 characters" autoComplete={mode === "signup" ? "new-password" : "current-password"} />
+          </label>
+
+          {mode === "signup" && (
+            <div>
+              <div className="auth-form__legend">Profile interests</div>
+              <div className="auth-interest-grid">
+                {INTERESTS.map(interest => (
+                  <button
+                    type="button"
+                    key={interest}
+                    className={form.interests.includes(interest) ? "is-active" : ""}
+                    onClick={() => toggleInterest(interest)}
+                  >
+                    {interest}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button className="premium-button premium-button--teal auth-submit" disabled={busy}>
+            {busy ? "Securing session..." : mode === "signup" ? "Create secure profile" : "Log in securely"}
+          </button>
+
+          <button type="button" className="auth-secondary-action" onClick={() => nav("community")}>
+            View community page instead
+          </button>
+        </form>
       </section>
-    </div>
+    </main>
   );
 }

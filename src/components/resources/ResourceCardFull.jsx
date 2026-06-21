@@ -6,6 +6,7 @@ import VisualIcon from "../ui/VisualIcon";
 export default function ResourceCardFull({ res, saved, onSave }) {
   const [expanded, setExpanded] = useState(false);
   const showPhoneLink = res.phone && res.phone !== "N/A" && !["211", "911", "988"].includes(String(res.phone).replace(/\D/g, ""));
+  const directionsQuery = res.mapQuery || "";
 
   return (
     <article className="resource-card-premium" style={expanded ? { boxShadow:"var(--cc-shadow-lift)" } : {}}>
@@ -46,9 +47,11 @@ export default function ResourceCardFull({ res, saved, onSave }) {
         <a href={res.website} target="_blank" rel="noopener noreferrer" className="premium-button" style={{ background:C.navy, color:"#fff", minHeight:40, fontSize:13 }}>
           <VisualIcon name="link" size={15} /> Official source
         </a>
-        <a href={`https://maps.google.com/?q=${encodeURIComponent(res.location)}`} target="_blank" rel="noopener noreferrer" className="premium-button" style={{ background:"#fff", color:C.navy, border:"1px solid rgba(15,31,58,0.1)", minHeight:40, fontSize:13 }}>
-          <VisualIcon name="location" size={15} /> Directions
-        </a>
+        {directionsQuery && (
+          <a href={`https://maps.google.com/?q=${encodeURIComponent(directionsQuery)}`} target="_blank" rel="noopener noreferrer" className="premium-button" style={{ background:"#fff", color:C.navy, border:"1px solid rgba(15,31,58,0.1)", minHeight:40, fontSize:13 }}>
+            <VisualIcon name="location" size={15} /> Directions
+          </a>
+        )}
         {showPhoneLink && (
           <a href={`tel:${res.phone}`} className="premium-button" style={{ background:"#fff", color:C.navy, border:"1px solid rgba(15,31,58,0.1)", minHeight:40, fontSize:13 }}>
             <VisualIcon name="phone" size={15} /> {res.phone}

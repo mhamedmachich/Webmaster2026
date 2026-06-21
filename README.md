@@ -24,7 +24,7 @@ copy .env.example .env
 npm run api
 ```
 
-Run `npm run dev` in one terminal and `npm run api` in another when testing secure auth, community API endpoints, and event registration email.
+Run `npm run dev:full` to start both the Vite frontend and Express API together. This enables shared community accounts, live posts, bot resource accounts, profile updates, verification badges, and event registration email endpoints.
 
 ## Folder Structure
 

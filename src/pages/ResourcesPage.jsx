@@ -1,121 +1,174 @@
+﻿import { useEffect, useMemo, useState } from "react";
 import { C } from "../data/colors";
 import { RESOURCES } from "../data/resources";
 import CompassMatch from "../components/features/CompassMatch";
-import NeedHelpFast from "../components/features/NeedHelpFast";
-import TrustPanel from "../components/features/TrustPanel";
-import FilterSidebar from "../components/resources/FilterSidebar";
 import ResourceCardFull from "../components/resources/ResourceCardFull";
 import VisualIcon from "../components/ui/VisualIcon";
 
 const FINDER_SUGGESTIONS = [
   { label:"Food this week", search:"food", category:"Food", icon:"food" },
-  { label:"Tutoring and study space", search:"tutoring library", category:"Learning Resources", icon:"education" },
-  { label:"Rent or utility help", search:"housing utilities", category:"Housing", icon:"building" },
-  { label:"Resume support", search:"resume career", category:"Employment", icon:"computer" },
-  { label:"Youth programs", search:"teen youth", category:"Youth & Recreation", icon:"hands" },
+  { label:"Tutoring", search:"tutoring library", category:"Learning Resources", icon:"education" },
+  { label:"Rent or utilities", search:"housing utilities", category:"Housing", icon:"building" },
+  { label:"Career help", search:"resume career", category:"Employment", icon:"computer" },
+  { label:"Teen programs", search:"teen youth", category:"Youth & Recreation", icon:"hands" },
+  { label:"Transportation", search:"transportation rides", category:"Transportation", icon:"car" },
 ];
 
-export default function ResourcesPage({ filters, setFilters, filteredResources, savedIds, toggleSave, resourceSearch, setResourceSearch, quickHelp }) {
+export default function ResourcesPage({ filters, setFilters, filteredResources, savedIds, toggleSave, resourceSearch, setResourceSearch }) {
+  const [selectedId, setSelectedId] = useState(filteredResources[0]?.id || RESOURCES[0].id);
   const verifiedCount = RESOURCES.filter(resource => resource.verified).length;
-  const reviewCount = RESOURCES.filter(resource => resource.needsReview).length;
-  const categories = [...new Set(RESOURCES.map(resource => resource.category))];
+  const selected = useMemo(
+    () => filteredResources.find(resource => resource.id === selectedId) || filteredResources[0] || RESOURCES[0],
+    [filteredResources, selectedId]
+  );
+  const selectedMapQuery = selected.mapQuery || "";
+
+  useEffect(() => {
+    if (filteredResources.length && !filteredResources.some(resource => resource.id === selectedId)) {
+      setSelectedId(filteredResources[0].id);
+    }
+  }, [filteredResources, selectedId]);
+
+  const askFinder = (suggestion) => {
+    setResourceSearch(suggestion.search);
+    setFilters(prev => ({ ...prev, cat:suggestion.category, savedOnly:false }));
+  };
+
+  const resetFinder = () => {
+    setResourceSearch("");
+    setFilters({
+      cat:"All categories",
+      audience:"Everyone",
+      cost:"Any cost",
+      urgency:"Any timing",
+      format:"Any format",
+      language:"Any language",
+      openNow:false,
+      accessibility:false,
+      transit:false,
+      savedOnly:false,
+    });
+  };
 
   return (
-    <div style={{ animation:"fadeIn 0.3s ease" }}>
-      <section className="premium-hero" style={{ minHeight:"auto", padding:"76px 24px 42px" }}>
-        <div style={{ maxWidth:"var(--cc-container)", margin:"0 auto", position:"relative" }}>
-          <div className="premium-eyebrow">
-            <VisualIcon name="search" size={15} color="currentColor" />
-            Resource Finder
-          </div>
-          <h1 style={{ maxWidth:760 }}>Search less. Find the right local starting point faster.</h1>
-          <p style={{ maxWidth:760 }}>Use search, filters, Compass Match, and trust labels to narrow community resources without needing a live API or account.</p>
-
-          <div className="command-center" style={{ marginTop:34 }}>
-            <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) auto", gap:16, alignItems:"center" }}>
-              <div style={{ position:"relative" }}>
-                <span style={{ position:"absolute", left:16, top:"50%", transform:"translateY(-50%)", color:C.g400, display:"flex" }}><VisualIcon name="search" size={18} /></span>
-                <input
-                  value={resourceSearch}
-                  onChange={e => setResourceSearch(e.target.value)}
-                  placeholder="Search by resource, need, or description..."
-                  aria-label="Search community resources"
-                  style={{ width:"100%", padding:"16px 18px 16px 48px", border:"1px solid rgba(15,31,58,0.1)", borderRadius:999, fontSize:16, fontFamily:"inherit", color:C.navy, background:"rgba(255,255,255,0.92)", boxShadow:"0 12px 34px rgba(11,31,58,0.08)" }}
-                />
-              </div>
-              <div style={{ display:"flex", gap:10, flexWrap:"wrap", justifyContent:"flex-end" }}>
-                <div className="status-badge" style={{ background:C.tealLight, color:C.teal }}>{verifiedCount} verified</div>
-                <div className="status-badge" style={{ background:C.coralLight, color:C.coral }}>{reviewCount} needs review</div>
-                <div className="status-badge" style={{ background:C.purpleLight, color:C.purple }}>{savedIds.size} saved</div>
-              </div>
+    <div className="resource-tool-page">
+      <section className="resource-tool-shell">
+        <aside className="resource-assistant-panel">
+          <div className="resource-assistant-panel__top">
+            <div className="premium-eyebrow">
+              <VisualIcon name="search" size={15} />
+              Resource Finder AI
             </div>
-            <div className="finder-suggestion-row">
-              {FINDER_SUGGESTIONS.map(suggestion => (
+            <h1>Tell Compass what you need.</h1>
+            <p>Use this as a guided tool instead of scrolling through a long directory. Search, choose intent chips, then review one best match at a time.</p>
+          </div>
+
+          <div className="resource-command-box">
+            <VisualIcon name="guide" size={22} />
+            <input
+              value={resourceSearch}
+              onChange={event => setResourceSearch(event.target.value)}
+              placeholder="Example: I need food help this week"
+              aria-label="Ask the resource finder"
+            />
+          </div>
+
+          <div className="resource-prompt-grid">
+            {FINDER_SUGGESTIONS.map(suggestion => (
+              <button key={suggestion.label} onClick={() => askFinder(suggestion)}>
+                <VisualIcon name={suggestion.icon} size={18} />
+                {suggestion.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="resource-filter-mini">
+            <label>
+              Category
+              <select value={filters.cat} onChange={event => setFilters(prev => ({ ...prev, cat:event.target.value }))}>
+                <option>All categories</option>
+                {[...new Set(RESOURCES.map(resource => resource.category))].map(category => <option key={category}>{category}</option>)}
+              </select>
+            </label>
+            <label>
+              Audience
+              <select value={filters.audience} onChange={event => setFilters(prev => ({ ...prev, audience:event.target.value }))}>
+                {["Everyone", "Students", "Families", "Adults", "Seniors"].map(value => <option key={value}>{value}</option>)}
+              </select>
+            </label>
+            <label>
+              Timing
+              <select value={filters.urgency} onChange={event => setFilters(prev => ({ ...prev, urgency:event.target.value }))}>
+                {["Any timing", "Same Week", "Routine"].map(value => <option key={value}>{value}</option>)}
+              </select>
+            </label>
+          </div>
+
+          <div className="resource-tool-stats">
+            <div><strong>{filteredResources.length}</strong><span>matches</span></div>
+            <div><strong>{verifiedCount}</strong><span>verified</span></div>
+            <div><strong>{savedIds.size}</strong><span>saved</span></div>
+          </div>
+
+          <button className="resource-reset-button" onClick={resetFinder}>Reset finder</button>
+        </aside>
+
+        <main className="resource-results-workspace">
+          <div className="resource-workspace-header">
+            <div>
+              <span>Best Matches</span>
+              <h2>{filteredResources.length ? `${filteredResources.length} resources found` : "No matches yet"}</h2>
+            </div>
+            <button onClick={() => setFilters(prev => ({ ...prev, savedOnly:!prev.savedOnly }))}>
+              {filters.savedOnly ? "Showing saved" : "Saved only"}
+            </button>
+          </div>
+
+          <div className="resource-workspace-grid">
+            <div className="resource-match-list">
+              {filteredResources.length === 0 ? (
+                <div className="resource-empty-state">
+                  <VisualIcon name="empty" size={42} />
+                  <strong>No resources match.</strong>
+                  <span>Try fewer filters or another search phrase.</span>
+                </div>
+              ) : filteredResources.map(resource => (
                 <button
-                  key={suggestion.label}
-                  onClick={() => {
-                    setResourceSearch(suggestion.search);
-                    setFilters(prev => ({ ...prev, cat:suggestion.category, savedOnly:false }));
-                  }}
+                  key={resource.id}
+                  className={`resource-match-row ${selected?.id === resource.id ? "is-active" : ""}`}
+                  onClick={() => setSelectedId(resource.id)}
                 >
-                  <VisualIcon name={suggestion.icon} size={17} />
-                  <span>{suggestion.label}</span>
+                  <span>{resource.category}</span>
+                  <strong>{resource.title}</strong>
+                  <small>{resource.urgency} · {resource.format} · {resource.verified ? "Verified" : "Needs review"}</small>
                 </button>
               ))}
             </div>
+
+            <div className="resource-focus-panel">
+              {selectedMapQuery ? (
+                <div className="resource-map-embed">
+                  <iframe
+                    key={selected.id}
+                    title={`Map for ${selected.title}`}
+                    loading="lazy"
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(selectedMapQuery)}&output=embed`}
+                  />
+                </div>
+              ) : (
+                <div className="resource-map-embed resource-map-embed--empty">
+                  <VisualIcon name="globe" size={42} />
+                  <strong>Online or phone-based resource</strong>
+                  <span>This listing does not have a single public walk-in location. Use the official source link for access details.</span>
+                </div>
+              )}
+              <ResourceCardFull res={selected} saved={savedIds.has(selected.id)} onSave={toggleSave} />
+            </div>
           </div>
-        </div>
+        </main>
       </section>
 
-      <NeedHelpFast onQuickHelp={quickHelp} />
-      <CompassMatch onSave={toggleSave} savedIds={savedIds} onOpenResources={() => setResourceSearch("")} />
-
-      <section className="premium-shell" style={{ paddingTop:28 }}>
-        <div className="resource-intel-grid">
-          <div className="resource-intel-card resource-intel-card--primary">
-            <span>Finder intelligence</span>
-            <strong>{categories.length} service categories</strong>
-            <p>Search is paired with filters, saved-only mode, verification tags, transit indicators, and action links.</p>
-          </div>
-          <div className="resource-intel-card">
-            <span>Trust view</span>
-            <strong>{verifiedCount} verified</strong>
-            <p>Official links and verification dates are visible on every result.</p>
-          </div>
-          <div className="resource-intel-card">
-            <span>Action plan</span>
-            <strong>{savedIds.size} saved</strong>
-            <p>Saved resources roll into the user’s sitewide action plan.</p>
-          </div>
-        </div>
-
-        <div style={{ display:"flex", justifyContent:"space-between", gap:20, alignItems:"end", flexWrap:"wrap", marginBottom:20 }}>
-          <div>
-            <div className="section-kicker">Filtered Results</div>
-            <h2 className="section-heading" style={{ fontSize:"clamp(1.8rem,3vw,2.7rem)" }}>{filteredResources.length} resource{filteredResources.length!==1?"s":""} match your finder.</h2>
-          </div>
-          <span style={{ color:"var(--cc-muted)", fontSize:14 }}>{savedIds.size} saved locally</span>
-        </div>
-
-        <div className="resource-layout" style={{ display:"flex", gap:24, alignItems:"flex-start" }}>
-          <FilterSidebar filters={filters} setFilters={setFilters} total={filteredResources.length} saved={savedIds.size} />
-          <div style={{ flex:1, minWidth:0 }}>
-            {filteredResources.length === 0 ? (
-              <div className="glass-panel" style={{ textAlign:"center", padding:"60px 24px", color:C.g400 }}>
-                <div style={{ display:"flex", justifyContent:"center", marginBottom:12 }}><VisualIcon name="empty" size={48} color={C.g400} /></div>
-                <div style={{ fontSize:18, color:C.navy, fontWeight:800, marginBottom:8 }}>No resources match your filters.</div>
-                <button onClick={() => { setFilters(f => ({...f, cat:"All categories", audience:"Everyone", cost:"Any cost", urgency:"Any timing", format:"Any format", language:"Any language", savedOnly:false})); setResourceSearch(""); }} className="premium-button premium-button--teal">Clear finder</button>
-              </div>
-            ) : (
-              <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-                {filteredResources.map(r => <ResourceCardFull key={r.id} res={r} saved={savedIds.has(r.id)} onSave={toggleSave} />)}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <TrustPanel />
+      <CompassMatch onSave={toggleSave} savedIds={savedIds} onOpenResources={resetFinder} />
     </div>
   );
 }

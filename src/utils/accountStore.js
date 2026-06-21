@@ -22,6 +22,14 @@ function publicUser(user) {
   return safeUser;
 }
 
+function makeHandle(name, email) {
+  const base = (name || email.split("@")[0] || "member")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 18);
+  return base || "member";
+}
+
 async function hashPassword(email, password) {
   const data = encoder.encode(`${email.trim().toLowerCase()}::${password}`);
   const digest = await crypto.subtle.digest("SHA-256", data);
@@ -50,12 +58,20 @@ export async function signupLocalAccount({ name, email, password, role, location
     id: `user-${Date.now()}`,
     name: name.trim(),
     email: normalizedEmail,
+    handle: makeHandle(name, normalizedEmail),
     passwordHash: await hashPassword(normalizedEmail, password),
     role: role || "Community Member",
     location: location || "Middletown, Delaware",
     bio: "Exploring local resources and community opportunities.",
+    website: "",
     interests: interests?.length ? interests : ["Resources", "Events", "Volunteering"],
     avatarGradient: "linear-gradient(135deg, #0B1F3A, #1D9E75)",
+    avatarImage: "/avatars/avatar-default.svg",
+    bannerGradient: "linear-gradient(135deg, #0B1F3A, #1D9E75 58%, #EF9F27)",
+    bannerImage: "",
+    accentColor: "#1D9E75",
+    emailVerified: false,
+    verified: false,
     createdAt: new Date().toISOString(),
   };
 
@@ -86,4 +102,11 @@ export function updateLocalProfile(nextProfile) {
   const updatedUsers = users.map(user => user.id === nextProfile.id ? { ...user, ...nextProfile, passwordHash:user.passwordHash } : user);
   writeJson(USERS_KEY, updatedUsers);
   return publicUser(updatedUsers.find(user => user.id === nextProfile.id));
+}
+
+export function verifyLocalAccount(userId) {
+  const users = getLocalUsers();
+  const updatedUsers = users.map(user => user.id === userId ? { ...user, emailVerified:true, verified:true } : user);
+  writeJson(USERS_KEY, updatedUsers);
+  return publicUser(updatedUsers.find(user => user.id === userId));
 }

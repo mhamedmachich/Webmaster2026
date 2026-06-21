@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { C } from "../data/colors";
-import VisualIcon, { IconTile } from "../components/ui/VisualIcon";
+import VisualIcon from "../components/ui/VisualIcon";
 import {
   addCommunityComment,
   createCommunityPost,
@@ -10,49 +10,90 @@ import {
   toggleCommunityLike,
 } from "../utils/communityStore";
 import { updateLocalProfile } from "../utils/accountStore";
+import { verifyLocalAccount } from "../utils/accountStore";
+import { commentApiPost, createApiPost, getApiPosts, likeApiPost, updateApiProfile, verifyApiEmail } from "../utils/communityApi";
 
-const PROMPTS = [
-  { icon:"message", title:"Ask a local question", text:"Need a resource, volunteer partner, or event idea? Post it to the board." },
-  { icon:"calendar", title:"Share an update", text:"Promote a workshop, service drive, club project, or school opportunity." },
-  { icon:"check", title:"Verify a resource", text:"Add context, dates, photos, or notes that help others trust what they find." },
+const POST_TYPES = ["Resource update", "Volunteer win", "Event recap", "Question", "Student support"];
+const AVATAR_GRADIENTS = [
+  "linear-gradient(135deg, #0B1F3A, #1D9E75)",
+  "linear-gradient(135deg, #534AB7, #378ADD)",
+  "linear-gradient(135deg, #EF9F27, #D85A30)",
+  "linear-gradient(135deg, #3B6D11, #5DCAA5)",
+  "linear-gradient(135deg, #993556, #EF9F27)",
 ];
+const BANNER_GRADIENTS = [
+  "linear-gradient(135deg, #0B1F3A, #1D9E75 58%, #EF9F27)",
+  "linear-gradient(135deg, #071A31, #378ADD 60%, #5DCAA5)",
+  "linear-gradient(135deg, #122840, #534AB7 55%, #EF9F27)",
+  "linear-gradient(135deg, #073B31, #1D9E75 55%, #E1F5EE)",
+];
+const ACCENTS = ["#1D9E75", "#378ADD", "#534AB7", "#EF9F27", "#D85A30"];
+const AVATAR_PRESETS = ["/avatars/avatar-1.svg", "/avatars/avatar-2.svg", "/avatars/avatar-3.svg", "/avatars/avatar-default.svg"];
+
+function normalizeHandle(value, fallback = "member") {
+  const handle = String(value || fallback).toLowerCase().replace(/[^a-z0-9_]+/g, "").slice(0, 20);
+  return handle || fallback;
+}
 
 function timeAgo(isoDate) {
   const diff = Date.now() - new Date(isoDate).getTime();
   const minutes = Math.max(1, Math.round(diff / 60000));
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return `${minutes}m`;
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+  if (hours < 24) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
 }
 
-function Avatar({ user, size = 46 }) {
+function getProfile(user) {
+  if (!user) return null;
+  return {
+    handle: user.handle || normalizeHandle(user.name || user.email),
+    website: user.website || "",
+    bannerGradient: user.bannerGradient || "linear-gradient(135deg, #0B1F3A, #1D9E75 58%, #EF9F27)",
+    bannerImage: user.bannerImage || "",
+    avatarImage: user.avatarImage || "",
+    avatarGradient: user.avatarGradient || "linear-gradient(135deg, #0B1F3A, #1D9E75)",
+    accentColor: user.accentColor || C.teal,
+    bio: user.bio || "Exploring local resources and community opportunities.",
+    interests: user.interests || ["Resources", "Events", "Volunteering"],
+    ...user,
+  };
+}
+
+function readImage(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve("");
+    if (!file.type.startsWith("image/")) return reject(new Error("Choose an image file."));
+    if (file.size > 2.5 * 1024 * 1024) return reject(new Error("Profile images must be under 2.5 MB for the demo."));
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Could not read that image."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function Avatar({ user, size = 48 }) {
+  const profile = getProfile(user) || {};
   return (
     <div
-      className="community-avatar"
+      className="social-avatar"
       style={{
         width:size,
         height:size,
-        background:user.avatarGradient || "linear-gradient(135deg, #0B1F3A, #1D9E75)",
+        background:profile.avatarImage ? `url(${profile.avatarImage}) center / cover` : profile.avatarGradient,
       }}
       aria-hidden="true"
     >
-      {user.name?.slice(0, 1) || "C"}
+      {!profile.avatarImage && (profile.name?.slice(0, 1) || "C")}
     </div>
   );
 }
 
 function AttachmentPreview({ attachment }) {
-  if (attachment.type === "image") {
-    return <img src={attachment.url} alt={attachment.name} className="community-attachment community-attachment--image" />;
-  }
-
-  if (attachment.type === "video") {
-    return <video src={attachment.url} controls className="community-attachment community-attachment--video" />;
-  }
-
+  if (attachment.type === "image") return <img src={attachment.url} alt={attachment.name} className="social-attachment" />;
+  if (attachment.type === "video") return <video src={attachment.url} controls className="social-attachment" />;
   return (
-    <a href={attachment.url} download={attachment.name} className="community-attachment-file">
+    <a href={attachment.url} download={attachment.name} className="social-file">
       <VisualIcon name="grant" size={18} />
       {attachment.name}
     </a>
@@ -60,294 +101,442 @@ function AttachmentPreview({ attachment }) {
 }
 
 export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_ }) {
+  const currentProfile = getProfile(currentUser);
   const [posts, setPosts] = useState(() => getCommunityPosts());
   const [postText, setPostText] = useState("");
-  const [category, setCategory] = useState("Resource Tip");
+  const [category, setCategory] = useState("Resource update");
   const [attachments, setAttachments] = useState([]);
   const [commentText, setCommentText] = useState({});
   const [editingProfile, setEditingProfile] = useState(false);
-  const [profileDraft, setProfileDraft] = useState(currentUser || {});
-  const profileInterestsValue = Array.isArray(profileDraft.interests)
-    ? profileDraft.interests.join(", ")
-    : profileDraft.interests || "";
+  const [profileDraft, setProfileDraft] = useState(() => currentProfile || {});
+  const [apiLive, setApiLive] = useState(false);
 
   const members = useMemo(() => [
-    currentUser,
+    currentProfile,
     {
       id:"sample-organizer",
       name:"Maya R.",
+      handle:"mayaresources",
       role:"Youth Program Organizer",
       location:"New Castle County",
+      bio:"Youth workshops, tutoring partnerships, and resource referrals.",
       interests:["Youth Programs", "Events"],
+      avatarImage:"/avatars/avatar-2.svg",
       avatarGradient:"linear-gradient(135deg, #534AB7, #378ADD)",
+      bannerGradient:"linear-gradient(135deg, #534AB7, #378ADD)",
+      accentColor:"#378ADD",
     },
     {
       id:"sample-volunteer",
       name:"Jordan K.",
+      handle:"jordanshares",
       role:"Volunteer Lead",
       location:"Middletown",
+      bio:"Organizing service roles and community support drives.",
       interests:["Volunteering", "Food Assistance"],
+      avatarImage:"/avatars/avatar-3.svg",
       avatarGradient:"linear-gradient(135deg, #EF9F27, #D85A30)",
+      bannerGradient:"linear-gradient(135deg, #EF9F27, #D85A30)",
+      accentColor:"#EF9F27",
     },
-  ].filter(Boolean), [currentUser]);
+  ].filter(Boolean), [currentProfile]);
+
+  useEffect(() => {
+    let active = true;
+    const loadPosts = async () => {
+      try {
+        const apiPosts = await getApiPosts();
+        if (!active) return;
+        setApiLive(true);
+        setPosts(apiPosts);
+      } catch {
+        if (!active) return;
+        setApiLive(false);
+      }
+    };
+    loadPosts();
+    const timer = setInterval(loadPosts, 7000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const openEditor = () => {
+    if (!currentProfile) return nav("auth");
+    setProfileDraft(currentProfile);
+    setEditingProfile(true);
+  };
 
   const handleFiles = async (event) => {
     try {
       const nextAttachments = await filesToAttachments(event.target.files);
       setAttachments(nextAttachments);
-      if (nextAttachments.length) toast_(`${nextAttachments.length} attachment${nextAttachments.length > 1 ? "s" : ""} ready.`, C.teal);
+      if (nextAttachments.length) toast_(`${nextAttachments.length} media item${nextAttachments.length > 1 ? "s" : ""} ready.`, C.teal);
     } catch (error) {
       toast_(error.message, C.coral);
     }
   };
 
-  const submitPost = (event) => {
+  const submitPost = async (event) => {
     event.preventDefault();
-    if (!currentUser) {
-      nav("auth");
-      return;
+    if (!currentProfile) return nav("auth");
+    if (!postText.trim() && attachments.length === 0) return toast_("Add text or media before posting.", C.coral);
+    try {
+      if (apiLive) {
+        await createApiPost({ text:postText || "Shared a community update.", category, attachments });
+        setPosts(await getApiPosts());
+      } else {
+        createCommunityPost({ user:currentProfile, text:postText || "Shared a community update.", category, attachments });
+        setPosts(getCommunityPosts());
+      }
+      setPostText("");
+      setAttachments([]);
+      toast_(apiLive ? "Post published to the shared community feed." : "Post saved offline. Start the API for shared posting.", C.teal);
+    } catch (error) {
+      toast_(error.message, C.coral);
     }
-    if (!postText.trim() && attachments.length === 0) {
-      toast_("Add text or an attachment before posting.", C.coral);
-      return;
-    }
-
-    createCommunityPost({ user:currentUser, text:postText || "Shared a community update.", category, attachments });
-    setPosts(getCommunityPosts());
-    setPostText("");
-    setAttachments([]);
-    toast_("Post shared with the community board.", C.teal);
   };
 
-  const like = (postId) => {
-    if (!currentUser) return nav("auth");
-    setPosts(toggleCommunityLike(postId, currentUser.id));
+  const like = async (postId) => {
+    if (!currentProfile) return nav("auth");
+    try {
+      if (apiLive) {
+        await likeApiPost(postId);
+        setPosts(await getApiPosts());
+      } else {
+        setPosts(toggleCommunityLike(postId, currentProfile.id));
+      }
+    } catch (error) {
+      toast_(error.message, C.coral);
+    }
   };
 
-  const comment = (postId) => {
+  const comment = async (postId) => {
     const text = commentText[postId];
-    if (!currentUser) return nav("auth");
+    if (!currentProfile) return nav("auth");
     if (!text?.trim()) return;
-    setPosts(addCommunityComment(postId, currentUser, text));
-    setCommentText(prev => ({ ...prev, [postId]:"" }));
+    try {
+      if (apiLive) {
+        await commentApiPost(postId, text);
+        setPosts(await getApiPosts());
+      } else {
+        setPosts(addCommunityComment(postId, currentProfile, text));
+      }
+      setCommentText(prev => ({ ...prev, [postId]:"" }));
+    } catch (error) {
+      toast_(error.message, C.coral);
+    }
   };
 
-  const saveProfile = () => {
-    const updated = updateLocalProfile({
-      ...currentUser,
+  const updateProfileImage = async (field, file) => {
+    try {
+      const image = await readImage(file);
+      setProfileDraft(prev => ({ ...prev, [field]:image }));
+    } catch (error) {
+      toast_(error.message, C.coral);
+    }
+  };
+
+  const saveProfile = async () => {
+    const nextProfile = {
+      ...currentProfile,
       ...profileDraft,
+      handle: normalizeHandle(profileDraft.handle, normalizeHandle(profileDraft.name || currentProfile.email)),
       interests: String(profileDraft.interests || "")
         .split(",")
         .map(interest => interest.trim())
         .filter(Boolean),
-    });
-    setCurrentUser(updated);
-    setProfileDraft(updated);
-    setEditingProfile(false);
-    toast_("Profile updated.", C.teal);
+    };
+    try {
+      const updated = apiLive ? await updateApiProfile(nextProfile) : updateLocalProfile(nextProfile);
+      setCurrentUser(updated);
+      setProfileDraft(getProfile(updated));
+      setEditingProfile(false);
+      toast_("Profile customization saved.", C.teal);
+    } catch (error) {
+      toast_(error.message, C.coral);
+    }
+  };
+
+  const verifyEmail = async () => {
+    if (!currentProfile) return nav("auth");
+    try {
+      const updated = apiLive ? await verifyApiEmail() : verifyLocalAccount(currentProfile.id);
+      setCurrentUser(updated);
+      toast_("Email verified. Badge unlocked.", C.blue);
+    } catch (error) {
+      toast_(error.message, C.coral);
+    }
   };
 
   return (
-    <div className="community-page" style={{ animation:"fadeIn 0.3s ease" }}>
-      <section className="community-hero">
-        <div className="community-hero__content">
-          <div>
-            <div className="premium-eyebrow">
-              <VisualIcon name="users" size={15} />
-              Community Network
-            </div>
-            <h1>Profiles, posts, and local knowledge in one civic feed.</h1>
-            <p>
-              A moderated community layer where members can share resource updates, event media,
-              service wins, and questions that help others find a clearer next step.
-            </p>
-            <div className="premium-actions">
-              <button className="premium-button premium-button--primary" onClick={() => currentUser ? document.getElementById("community-composer")?.focus() : nav("auth")}>
-                {currentUser ? "Create a post" : "Create an account"}
-              </button>
-              <button className="premium-button premium-button--ghost" onClick={() => nav("resources")}>Explore resources</button>
-            </div>
-          </div>
-
-          <div className="community-signal-panel">
-            <span className="community-signal-panel__pulse" />
-            <strong>Live community demo</strong>
-            <p>{posts.length} post{posts.length === 1 ? "" : "s"} · {members.length} profile{members.length === 1 ? "" : "s"} · media-ready board</p>
-            <div className="community-signal-panel__grid">
-              {PROMPTS.map(prompt => (
-                <div key={prompt.title}>
-                  <VisualIcon name={prompt.icon} size={20} />
-                  <span>{prompt.title}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="premium-shell community-layout">
-        <aside className="community-sidebar">
-          <div className="community-profile-card">
-            {currentUser ? (
-              <>
-                <Avatar user={currentUser} size={64} />
-                <h2>{currentUser.name}</h2>
-                <p>{currentUser.role} · {currentUser.location}</p>
-                <div className="community-interest-list">
-                  {currentUser.interests?.map(interest => <span key={interest}>{interest}</span>)}
-                </div>
-                <button className="premium-button premium-button--teal" onClick={() => setEditingProfile(true)} style={{ width:"100%", marginTop:16 }}>Edit profile</button>
-              </>
-            ) : (
-              <>
-                <IconTile name="users" color={C.teal} />
-                <h2>Join the board</h2>
-                <p>Create a profile to post, comment, like updates, and save your identity for the demo.</p>
-                <button className="premium-button premium-button--teal" onClick={() => nav("auth")} style={{ width:"100%", marginTop:16 }}>Sign up or log in</button>
-              </>
-            )}
-          </div>
-
-          <div className="community-member-card">
-            <div className="section-kicker">Profiles</div>
-            {members.map(member => (
-              <div className="community-member-row" key={member.id}>
-                <Avatar user={member} size={38} />
-                <div>
-                  <strong>{member.name}</strong>
-                  <span>{member.role}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <button
-            className="community-reset"
-            onClick={() => {
-              setPosts(resetCommunityDemo());
-              toast_("Community demo feed reset.", C.g500);
-            }}
-          >
-            Reset demo feed
+    <div className="social-page" style={{ "--social-accent":currentProfile?.accentColor || C.teal }}>
+      <section className="social-shell">
+        <aside className="social-left-rail">
+          <button className="social-brand-pill" onClick={() => nav("home")}>
+            <img src="/brand/community-compass-logo.png" alt="" />
+            <span>Community</span>
           </button>
+
+          {[
+            ["Home", "home", "compass"],
+            ["Resources", "resources", "search"],
+            ["Community", "community", "message"],
+            ["Events", "events", "calendar"],
+            ["Guide", "ai", "guide"],
+          ].map(([label, page, icon]) => (
+            <button key={page} className={`social-nav-pill ${page === "community" ? "is-active" : ""}`} onClick={() => nav(page)}>
+              <VisualIcon name={icon} size={22} />
+              <span>{label}</span>
+            </button>
+          ))}
+
+          <button className="social-post-button" onClick={() => currentProfile ? document.getElementById("social-composer")?.focus() : nav("auth")}>Post</button>
+
+          {currentProfile ? (
+            <button className="social-mini-profile" onClick={openEditor}>
+              <Avatar user={currentProfile} size={42} />
+              <span>
+                <strong>{currentProfile.name}</strong>
+                <small>@{currentProfile.handle}</small>
+              </span>
+            </button>
+          ) : (
+            <button className="social-post-button social-post-button--ghost" onClick={() => nav("auth")}>Create account</button>
+          )}
         </aside>
 
-        <main className="community-feed">
-          {editingProfile && currentUser && (
-            <div className="community-editor">
-              <h2>Edit profile</h2>
-              <div className="community-editor__grid">
-                <label>Name<input value={profileDraft.name || ""} onChange={event => setProfileDraft(prev => ({ ...prev, name:event.target.value }))} /></label>
-                <label>Role<input value={profileDraft.role || ""} onChange={event => setProfileDraft(prev => ({ ...prev, role:event.target.value }))} /></label>
-                <label>Location<input value={profileDraft.location || ""} onChange={event => setProfileDraft(prev => ({ ...prev, location:event.target.value }))} /></label>
-                <label>Interests<input value={profileInterestsValue} onChange={event => setProfileDraft(prev => ({ ...prev, interests:event.target.value }))} /></label>
-              </div>
-              <label>Bio<textarea value={profileDraft.bio || ""} onChange={event => setProfileDraft(prev => ({ ...prev, bio:event.target.value }))} rows={3} /></label>
-              <div className="community-editor__actions">
-                <button className="premium-button premium-button--teal" onClick={saveProfile}>Save profile</button>
-                <button className="premium-button" onClick={() => setEditingProfile(false)} style={{ background:"#fff", border:"1px solid rgba(15,31,58,0.12)" }}>Cancel</button>
-              </div>
+        <main className="social-feed-column">
+          <header className="social-feed-header">
+            <div>
+              <strong>Community</strong>
+              <span>{posts.length} live updates</span>
             </div>
-          )}
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <span className={`social-live-pill ${apiLive ? "is-live" : ""}`}>{apiLive ? "Live API" : "Offline"}</span>
+              <button onClick={openEditor}>{currentProfile ? "Customize profile" : "Sign up"}</button>
+            </div>
+          </header>
 
-          <form className="community-composer" onSubmit={submitPost}>
-            <div className="community-composer__top">
-              {currentUser ? <Avatar user={currentUser} /> : <IconTile name="users" color={C.teal} tileSize={46} size={22} />}
-              <div>
-                <strong>{currentUser ? `Posting as ${currentUser.name}` : "Sign in to post"}</strong>
-                <span>Share text, photos, videos, PDFs, flyers, and local updates.</span>
-              </div>
-            </div>
-            <textarea
-              id="community-composer"
-              value={postText}
-              onChange={event => setPostText(event.target.value)}
-              placeholder="Share a resource update, service project recap, question, or opportunity..."
-              rows={5}
-            />
-            <div className="community-composer__tools">
-              <select value={category} onChange={event => setCategory(event.target.value)}>
-                <option>Resource Tip</option>
-                <option>Volunteer Opportunity</option>
-                <option>Event Update</option>
-                <option>Student Support</option>
-                <option>Community Question</option>
-              </select>
-              <label className="community-upload">
-                <VisualIcon name="grant" size={16} />
-                Add media
-                <input type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx" onChange={handleFiles} />
-              </label>
-              <button className="premium-button premium-button--teal" type="submit">Post update</button>
-            </div>
-            {attachments.length > 0 && (
-              <div className="community-attachment-preview">
-                {attachments.map(attachment => <AttachmentPreview key={attachment.id} attachment={attachment} />)}
-              </div>
-            )}
-          </form>
+          <nav className="social-feed-tabs" aria-label="Community feed filters">
+            <button className="is-active">For you</button>
+            <button>Following</button>
+            <button>Local updates</button>
+          </nav>
 
-          <div className="community-prompt-grid">
-            {PROMPTS.map(prompt => (
-              <button key={prompt.title} onClick={() => setPostText(`${prompt.title}: `)}>
-                <VisualIcon name={prompt.icon} size={22} />
-                <strong>{prompt.title}</strong>
-                <span>{prompt.text}</span>
+          <div className="social-story-strip" aria-label="Community quick topics">
+            {[
+              ["Resources", "search"],
+              ["Events", "calendar"],
+              ["Volunteers", "hands"],
+              ["Students", "education"],
+              ["Questions", "message"],
+            ].map(([label, icon]) => (
+              <button key={label} onClick={() => setPostText(`${label}: `)}>
+                <span><VisualIcon name={icon} size={20} /></span>
+                {label}
               </button>
             ))}
           </div>
 
-          <div className="community-posts">
-            {posts.map(post => {
-              const liked = currentUser && post.likedBy.includes(currentUser.id);
-              return (
-                <article className="community-post" key={post.id}>
-                  <div className="community-post__header">
-                    <Avatar user={{ name:post.authorName, avatarGradient:post.avatarGradient }} />
-                    <div>
-                      <strong>{post.authorName}</strong>
-                      <span>{post.authorRole} · {timeAgo(post.createdAt)}</span>
-                    </div>
-                    <span className="status-badge">{post.category}</span>
-                  </div>
-                  <p>{post.text}</p>
-                  {post.attachments.length > 0 && (
-                    <div className="community-post__attachments">
-                      {post.attachments.map(attachment => <AttachmentPreview key={attachment.id} attachment={attachment} />)}
-                    </div>
-                  )}
-                  <div className="community-post__actions">
-                    <button onClick={() => like(post.id)} className={liked ? "is-active" : ""}>
-                      <VisualIcon name="hands" size={17} />
-                      {post.likedBy.length} helpful
-                    </button>
-                    <button onClick={() => document.getElementById(`comment-${post.id}`)?.focus()}>
-                      <VisualIcon name="message" size={17} />
-                      {post.comments.length} comments
-                    </button>
-                  </div>
-                  <div className="community-comments">
-                    {post.comments.map(commentItem => (
-                      <div key={commentItem.id}>
-                        <strong>{commentItem.authorName}</strong>
-                        <span>{commentItem.text}</span>
-                      </div>
+          <form className="social-composer" onSubmit={submitPost}>
+            {currentProfile ? <Avatar user={currentProfile} /> : <Avatar user={{ name:"C", avatarGradient:"linear-gradient(135deg, #0B1F3A, #1D9E75)" }} />}
+            <div>
+              <textarea
+                id="social-composer"
+                value={postText}
+                onChange={event => setPostText(event.target.value)}
+                placeholder={currentProfile ? "What is happening in your community?" : "Sign in to post, comment, and customize your profile."}
+                rows={3}
+              />
+              {attachments.length > 0 && (
+                <div className="social-attachment-grid">
+                  {attachments.map(attachment => <AttachmentPreview key={attachment.id} attachment={attachment} />)}
+                </div>
+              )}
+              <div className="social-composer__tools">
+                <select value={category} onChange={event => setCategory(event.target.value)}>
+                  {POST_TYPES.map(prompt => <option key={prompt}>{prompt}</option>)}
+                </select>
+                <label>
+                  <VisualIcon name="grant" size={17} />
+                  Media
+                  <input type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx" onChange={handleFiles} />
+                </label>
+                <button type="submit">{currentProfile ? "Post" : "Sign in"}</button>
+              </div>
+            </div>
+          </form>
+
+          {editingProfile && currentProfile && (
+            <section className="social-editor">
+              <div className="social-editor__top">
+                <h2>Customize profile</h2>
+                <button onClick={() => setEditingProfile(false)}>Close</button>
+              </div>
+              <div className="social-editor-preview">
+                <div className="social-editor-preview__banner" style={{ background:profileDraft.bannerImage ? `url(${profileDraft.bannerImage}) center / cover` : profileDraft.bannerGradient }} />
+                <Avatar user={profileDraft} size={76} />
+              </div>
+              <div className="social-editor__grid">
+                <label>Name<input value={profileDraft.name || ""} onChange={event => setProfileDraft(prev => ({ ...prev, name:event.target.value }))} /></label>
+                <label>Handle<input value={profileDraft.handle || ""} onChange={event => setProfileDraft(prev => ({ ...prev, handle:event.target.value }))} /></label>
+                <label>Role<input value={profileDraft.role || ""} onChange={event => setProfileDraft(prev => ({ ...prev, role:event.target.value }))} /></label>
+                <label>Location<input value={profileDraft.location || ""} onChange={event => setProfileDraft(prev => ({ ...prev, location:event.target.value }))} /></label>
+                <label>Website<input value={profileDraft.website || ""} onChange={event => setProfileDraft(prev => ({ ...prev, website:event.target.value }))} placeholder="https://..." /></label>
+                <label>Interests<input value={Array.isArray(profileDraft.interests) ? profileDraft.interests.join(", ") : profileDraft.interests || ""} onChange={event => setProfileDraft(prev => ({ ...prev, interests:event.target.value }))} /></label>
+              </div>
+              <label>Bio<textarea value={profileDraft.bio || ""} onChange={event => setProfileDraft(prev => ({ ...prev, bio:event.target.value }))} rows={3} maxLength={180} /></label>
+              <div className="social-customizer-row">
+                <div>
+                  <strong>Avatar style</strong>
+                  <div className="social-avatar-preset-row">
+                    {AVATAR_PRESETS.map(avatar => (
+                      <button key={avatar} onClick={() => setProfileDraft(prev => ({ ...prev, avatarImage:avatar }))} aria-label="Choose avatar preset">
+                        <img src={avatar} alt="" />
+                      </button>
                     ))}
                   </div>
-                  <div className="community-comment-box">
-                    <input
-                      id={`comment-${post.id}`}
-                      value={commentText[post.id] || ""}
-                      onChange={event => setCommentText(prev => ({ ...prev, [post.id]:event.target.value }))}
-                      placeholder={currentUser ? "Add a helpful comment..." : "Sign in to comment"}
-                    />
-                    <button className="premium-button premium-button--teal" onClick={() => comment(post.id)}>Comment</button>
+                  <div className="social-swatch-row">
+                    {AVATAR_GRADIENTS.map(gradient => <button key={gradient} style={{ background:gradient }} onClick={() => setProfileDraft(prev => ({ ...prev, avatarGradient:gradient, avatarImage:"" }))} aria-label="Choose avatar gradient" />)}
+                  </div>
+                  <label className="social-upload-chip">Upload avatar<input type="file" accept="image/*" onChange={event => updateProfileImage("avatarImage", event.target.files?.[0])} /></label>
+                </div>
+                <div>
+                  <strong>Banner style</strong>
+                  <div className="social-banner-swatch-row">
+                    {BANNER_GRADIENTS.map(gradient => <button key={gradient} style={{ background:gradient }} onClick={() => setProfileDraft(prev => ({ ...prev, bannerGradient:gradient, bannerImage:"" }))} aria-label="Choose banner gradient" />)}
+                  </div>
+                  <label className="social-upload-chip">Upload banner<input type="file" accept="image/*" onChange={event => updateProfileImage("bannerImage", event.target.files?.[0])} /></label>
+                </div>
+                <div>
+                  <strong>Accent</strong>
+                  <div className="social-swatch-row">
+                    {ACCENTS.map(color => <button key={color} style={{ background:color }} onClick={() => setProfileDraft(prev => ({ ...prev, accentColor:color }))} aria-label="Choose accent color" />)}
+                  </div>
+                </div>
+              </div>
+              <button className="social-save-profile" onClick={saveProfile}>Save profile</button>
+              {currentProfile && !currentProfile.emailVerified && <button className="social-verify-button" onClick={verifyEmail}>Verify email for badge</button>}
+            </section>
+          )}
+
+          <div className="social-posts">
+            {posts.map(post => {
+              const liked = currentProfile && post.likedBy.includes(currentProfile.id);
+              const profile = {
+                name:post.authorName,
+                handle:post.authorHandle || normalizeHandle(post.authorName),
+                role:post.authorRole,
+                avatarGradient:post.avatarGradient,
+                avatarImage:post.avatarImage,
+                accentColor:post.accentColor,
+                verified:post.verified,
+              };
+              return (
+                <article className="social-post" key={post.id} style={{ "--post-accent":post.accentColor || C.teal }}>
+                  <Avatar user={profile} />
+                  <div className="social-post__body">
+                    <div className="social-post__meta">
+                      <strong>{post.authorName}</strong>
+                      {post.verified && <img src="/avatars/verified-badge.svg" alt="Verified" className="verified-badge" />}
+                      <span>@{profile.handle}</span>
+                      <span>·</span>
+                      <span>{timeAgo(post.createdAt)}</span>
+                      <small>{post.category}</small>
+                    </div>
+                    <p>{post.text}</p>
+                    {post.attachments.length > 0 && (
+                      <div className="social-attachment-grid">
+                        {post.attachments.map(attachment => <AttachmentPreview key={attachment.id} attachment={attachment} />)}
+                      </div>
+                    )}
+                    <div className="social-post__actions">
+                      <button onClick={() => document.getElementById(`comment-${post.id}`)?.focus()}><VisualIcon name="message" size={17} />{post.comments.length}</button>
+                      <button onClick={() => like(post.id)} className={liked ? "is-active" : ""}><VisualIcon name="hands" size={17} />{post.likedBy.length}</button>
+                      <button onClick={() => setPostText(`Re: ${post.authorName} — `)}><VisualIcon name="link" size={17} />Share</button>
+                    </div>
+                    {post.comments.length > 0 && (
+                      <div className="social-comments">
+                        {post.comments.map(commentItem => (
+                          <div key={commentItem.id}>
+                            <strong>{commentItem.authorName}{commentItem.verified ? " ✓" : ""}</strong>
+                            <span>{commentItem.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="social-comment-box">
+                      <input id={`comment-${post.id}`} value={commentText[post.id] || ""} onChange={event => setCommentText(prev => ({ ...prev, [post.id]:event.target.value }))} placeholder={currentProfile ? "Post your reply" : "Sign in to reply"} />
+                      <button onClick={() => comment(post.id)}>Reply</button>
+                    </div>
                   </div>
                 </article>
               );
             })}
           </div>
         </main>
+
+        <aside className="social-right-rail">
+          <div className="social-search-box">
+            <VisualIcon name="search" size={18} />
+            <span>Search Community Compass</span>
+          </div>
+
+          <section className="social-account-card">
+            <div
+              className="social-account-card__banner"
+              style={{
+                background:currentProfile?.bannerImage
+                  ? `linear-gradient(180deg, transparent, rgba(4, 19, 38, 0.24)), url(${currentProfile.bannerImage}) center / cover`
+                  : currentProfile?.bannerGradient || "linear-gradient(135deg, #0B1F3A, #1D9E75 58%, #EF9F27)",
+              }}
+            />
+            <div className="social-account-card__body">
+              {currentProfile ? <Avatar user={currentProfile} size={70} /> : <Avatar user={{ name:"C", avatarGradient:"linear-gradient(135deg, #0B1F3A, #1D9E75)" }} size={70} />}
+              <h2>{currentProfile?.name || "Join Community Compass"}</h2>
+              <span>@{currentProfile?.handle || "communitycompass"} {currentProfile?.emailVerified ? "✓" : ""}</span>
+              <p>{currentProfile?.bio || "Create a profile to post updates, follow local topics, and customize your community presence."}</p>
+              <div className="social-account-actions">
+                <button onClick={openEditor}>{currentProfile ? "Edit profile" : "Create account"}</button>
+                {currentProfile && !currentProfile.emailVerified && <button onClick={verifyEmail}>Verify</button>}
+              </div>
+            </div>
+          </section>
+
+          <section className="social-widget">
+            <h2>What's happening</h2>
+            {[
+              ["Volunteer Opportunity", "Food drive sorting roles opened this week"],
+              ["Resource Update", "Library study rooms and youth programs added"],
+              ["Event", "Resume workshop registration is nearly full"],
+            ].map(([label, title]) => (
+              <button key={title} onClick={() => setPostText(`${label}: ${title}`)}>
+                <span>{label}</span>
+                <strong>{title}</strong>
+              </button>
+            ))}
+          </section>
+
+          <section className="social-widget">
+            <h2>Who to follow</h2>
+            {members.map(member => (
+              <div className="social-follow-row" key={member.id}>
+                <Avatar user={member} size={40} />
+                <div>
+                  <strong>{member.name}</strong>
+                  <span>@{member.handle}</span>
+                </div>
+                <button onClick={() => toast_("Follow saved.", C.teal)}>Follow</button>
+              </div>
+            ))}
+          </section>
+
+          <button className="social-reset-feed" onClick={() => { setPosts(resetCommunityDemo()); toast_("Offline feed reset.", C.g500); }}>
+            Reset offline feed
+          </button>
+        </aside>
       </section>
     </div>
   );

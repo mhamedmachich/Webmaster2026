@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { C } from "../data/colors";
 import { EVENTS } from "../data/events";
 import PageHero from "../components/layout/PageHero";
@@ -6,7 +5,7 @@ import VisualIcon from "../components/ui/VisualIcon";
 import { sendEventRegistrationEmail } from "../utils/registrationApi";
 
 export default function EventsPage({ registeredEvents, setRegisteredEvents, toast_, currentUser }) {
-  const [email, setEmail] = useState(currentUser?.email || "");
+  const email = currentUser?.email || "demo@communitycompass.local";
   const [sendingId, setSendingId] = useState(null);
 
   const registerEvent = async (event) => {
@@ -21,18 +20,13 @@ export default function EventsPage({ registeredEvents, setRegisteredEvents, toas
       return;
     }
 
-    if (!email.trim() || !email.includes("@")) {
-      toast_("Add a valid email address before registering.", C.coral);
-      return;
-    }
-
     setSendingId(event.id);
     try {
       const result = await sendEventRegistrationEmail({
         event,
         attendee: {
           name: currentUser?.name || "Community Compass Visitor",
-          email: email.trim(),
+          email,
         },
       });
 
@@ -46,7 +40,7 @@ export default function EventsPage({ registeredEvents, setRegisteredEvents, toas
     } catch (error) {
       const subject = encodeURIComponent(`Community Compass registration: ${event.title}`);
       const body = encodeURIComponent(`You registered for ${event.title}.\n\nDate: ${event.date}\nTime: ${event.time}\nLocation: ${event.location}\n\n${event.desc}`);
-      window.location.href = `mailto:${email.trim()}?subject=${subject}&body=${body}`;
+      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
       toast_(error.message || "API unavailable. Opening email draft with registration details.", C.coral);
     } finally {
       setSendingId(null);
@@ -67,19 +61,7 @@ export default function EventsPage({ registeredEvents, setRegisteredEvents, toas
           </div>
         )}
 
-        <div style={{ display:"grid", gridTemplateColumns:"minmax(0,0.72fr) minmax(0,1.28fr)", gap:22 }} className="responsive-two-col">
-          <div className="premium-card" style={{ padding:"24px", alignSelf:"start", position:"sticky", top:92 }}>
-            <div className="section-kicker">Event Flow</div>
-            <h2 className="section-heading" style={{ fontSize:"clamp(1.8rem,3vw,2.6rem)" }}>Register, track, and explain local engagement.</h2>
-            <p className="section-subtext">Progress bars show capacity, and registrations feed the sitewide action plan for a polished judging demo.</p>
-            <label className="event-email-field">
-              Confirmation email
-              <input value={email} onChange={event => setEmail(event.target.value)} type="email" placeholder="you@example.com" />
-              <span>The secure API sends the event details when SMTP is configured.</span>
-            </label>
-          </div>
-
-          <div style={{ display:"grid", gap:16 }}>
+        <div style={{ display:"grid", gap:16 }}>
             {EVENTS.map(event => {
               const pct = Math.round((event.registered/event.spots)*100);
               const full = pct >= 90;
@@ -115,7 +97,6 @@ export default function EventsPage({ registeredEvents, setRegisteredEvents, toas
                 </article>
               );
             })}
-          </div>
         </div>
       </section>
     </div>
