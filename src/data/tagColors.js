@@ -1,0 +1,18 @@
+export const TAG_COLORS = {
+  "Food": { bg:"#E1F5EE", color:"#0F6E56" },
+  "Same Week": { bg:"#FAEEDA", color:"#854F0B" },
+  "Hours not verified": { bg:"#F1EFE8", color:"#5F5E5A" },
+  "Hours verified": { bg:"#EAF3DE", color:"#3B6D11" },
+  "Verified source": { bg:"#E1F5EE", color:"#0F6E56" },
+  "Needs review": { bg:"#FAECE7", color:"#993C1D" },
+  "Routine": { bg:"#E6F1FB", color:"#185FA5" },
+  "Student & Family Support": { bg:"#EEEDFE", color:"#3C3489" },
+  "Mental Health": { bg:"#FBEAF0", color:"#72243E" },
+  "Learning Resources": { bg:"#E6F1FB", color:"#185FA5" },
+  "Housing": { bg:"#FAECE7", color:"#993C1D" },
+  "Employment": { bg:"#FAEEDA", color:"#854F0B" },
+  "Legal Aid": { bg:"#EEEDFE", color:"#3C3489" },
+  "Youth & Recreation": { bg:"#EAF3DE", color:"#3B6D11" },
+  "Utilities & Housing": { bg:"#FAEEDA", color:"#854F0B" },
+  "Health": { bg:"#E1F5EE", color:"#0F6E56" },
+};

@@ -1,0 +1,89 @@
+const USERS_KEY = "community-compass-users-v1";
+const SESSION_KEY = "community-compass-session-v1";
+
+const encoder = new TextEncoder();
+
+function readJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function publicUser(user) {
+  if (!user) return null;
+  const { passwordHash, ...safeUser } = user;
+  return safeUser;
+}
+
+async function hashPassword(email, password) {
+  const data = encoder.encode(`${email.trim().toLowerCase()}::${password}`);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export function getLocalUsers() {
+  return readJson(USERS_KEY, []);
+}
+
+export function getSessionUser() {
+  const sessionId = localStorage.getItem(SESSION_KEY);
+  if (!sessionId) return null;
+  return publicUser(getLocalUsers().find(user => user.id === sessionId));
+}
+
+export async function signupLocalAccount({ name, email, password, role, location, interests }) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const users = getLocalUsers();
+
+  if (users.some(user => user.email === normalizedEmail)) {
+    throw new Error("An account already exists for that email.");
+  }
+
+  const user = {
+    id: `user-${Date.now()}`,
+    name: name.trim(),
+    email: normalizedEmail,
+    passwordHash: await hashPassword(normalizedEmail, password),
+    role: role || "Community Member",
+    location: location || "Middletown, Delaware",
+    bio: "Exploring local resources and community opportunities.",
+    interests: interests?.length ? interests : ["Resources", "Events", "Volunteering"],
+    avatarGradient: "linear-gradient(135deg, #0B1F3A, #1D9E75)",
+    createdAt: new Date().toISOString(),
+  };
+
+  writeJson(USERS_KEY, [...users, user]);
+  localStorage.setItem(SESSION_KEY, user.id);
+  return publicUser(user);
+}
+
+export async function loginLocalAccount({ email, password }) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const users = getLocalUsers();
+  const user = users.find(account => account.email === normalizedEmail);
+
+  if (!user || user.passwordHash !== await hashPassword(normalizedEmail, password)) {
+    throw new Error("Invalid email or password.");
+  }
+
+  localStorage.setItem(SESSION_KEY, user.id);
+  return publicUser(user);
+}
+
+export function logoutLocalAccount() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+export function updateLocalProfile(nextProfile) {
+  const users = getLocalUsers();
+  const updatedUsers = users.map(user => user.id === nextProfile.id ? { ...user, ...nextProfile, passwordHash:user.passwordHash } : user);
+  writeJson(USERS_KEY, updatedUsers);
+  return publicUser(updatedUsers.find(user => user.id === nextProfile.id));
+}
