@@ -4,7 +4,7 @@ import { NAV } from "../../data/nav";
 export default function Footer({ nav }) {
   return (
     <footer style={{ background:C.navy, padding:"48px 24px 0", marginTop:80 }}>
-      <div style={{ maxWidth:1100, margin:"0 auto", display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:32, paddingBottom:40 }}>
+      <div style={{ maxWidth:"var(--cc-container)", margin:"0 auto", display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:32, paddingBottom:40 }}>
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
             <div style={{ width:34, height:34, borderRadius:9, background:"#fff", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
@@ -38,12 +38,12 @@ export default function Footer({ nav }) {
             <div>Official source links</div>
             <div>Visible verification dates</div>
             <div>Needs-review flags</div>
-            <div>Demo data review required</div>
+            <div>Routine data review required</div>
           </div>
         </div>
       </div>
-      <div style={{ maxWidth:1100, margin:"0 auto", borderTop:"1px solid rgba(255,255,255,0.1)", padding:"20px 0", display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
-        <span style={{ fontSize:12, color:"rgba(255,255,255,0.35)" }}>(c) 2026 Community Compass | TSA Webmaster Project | Middletown, Delaware</span>
+      <div style={{ maxWidth:"var(--cc-container)", margin:"0 auto", borderTop:"1px solid rgba(255,255,255,0.1)", padding:"20px 0", display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+        <span style={{ fontSize:12, color:"rgba(255,255,255,0.35)" }}>(c) 2026 Community Compass | Community Resource Platform | Middletown, Delaware</span>
         <span style={{ fontSize:12, color:"rgba(255,255,255,0.35)" }}>Built with React and local resource guidance</span>
       </div>
     </footer>

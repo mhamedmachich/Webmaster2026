@@ -1,35 +1,141 @@
 const POSTS_KEY = "community-compass-posts-v1";
+const ACTIVITY_KEY = "community-compass-activity-index-v1";
+
+const COMMUNITY_MEMBERS = [
+  {
+    id: "maya-resources",
+    name: "Maya R.",
+    handle: "mayaresources",
+    role: "Youth Program Organizer",
+    avatarImage: "/avatars/avatar-2.svg",
+    avatarGradient: "linear-gradient(135deg, #534AB7, #378ADD)",
+    accentColor: "#378ADD",
+    verified: true,
+  },
+  {
+    id: "jordan-shares",
+    name: "Jordan K.",
+    handle: "jordanshares",
+    role: "Volunteer Lead",
+    avatarImage: "/avatars/avatar-3.svg",
+    avatarGradient: "linear-gradient(135deg, #EF9F27, #D85A30)",
+    accentColor: "#EF9F27",
+    verified: true,
+  },
+  {
+    id: "elena-care",
+    name: "Elena M.",
+    handle: "elenacares",
+    role: "Family Resource Navigator",
+    avatarImage: "/avatars/avatar-1.svg",
+    avatarGradient: "linear-gradient(135deg, #0B1F3A, #1D9E75)",
+    accentColor: "#1D9E75",
+    verified: true,
+  },
+  {
+    id: "sam-students",
+    name: "Sam T.",
+    handle: "samstudents",
+    role: "Student Volunteer",
+    avatarImage: "/avatars/avatar-default.svg",
+    avatarGradient: "linear-gradient(135deg, #3B6D11, #5DCAA5)",
+    accentColor: "#5DCAA5",
+    verified: false,
+  },
+];
+
+const ACTIVITY_COMMENTS = [
+  "This is helpful. I shared it with our student service group.",
+  "Thanks for posting this. The official link makes it easier to verify.",
+  "Adding this to our resource list for families this week.",
+  "I can help with outreach if more volunteers are needed.",
+  "Good reminder to check hours before sending people over.",
+  "This would pair well with the next community resource night.",
+];
+
+const SEED_POSTS = [
+  {
+    id: "seed-food-drive",
+    authorId: "maya-resources",
+    authorName: "Maya R.",
+    authorHandle: "mayaresources",
+    authorRole: "Youth Program Organizer",
+    avatarImage: "/avatars/avatar-2.svg",
+    avatarGradient: "linear-gradient(135deg, #534AB7, #378ADD)",
+    accentColor: "#378ADD",
+    verified: true,
+    category: "Resource update",
+    text: "Updated the food support list with SNAP, WIC, 211, and the food bank locator so families have national and local starting points in one place.",
+    attachments: [],
+    likedBy: ["elena-care", "sam-students", "jordan-shares"],
+    comments: [
+      {
+        id: "comment-food-1",
+        authorName: "Elena M.",
+        verified: true,
+        text: "This gives families a clear path without guessing which office to call first.",
+        createdAt: new Date(Date.now() - 1000 * 60 * 27).toISOString(),
+      },
+    ],
+    createdAt: new Date(Date.now() - 1000 * 60 * 49).toISOString(),
+  },
+  {
+    id: "seed-volunteer",
+    authorId: "jordan-shares",
+    authorName: "Jordan K.",
+    authorHandle: "jordanshares",
+    authorRole: "Volunteer Lead",
+    avatarImage: "/avatars/avatar-3.svg",
+    avatarGradient: "linear-gradient(135deg, #EF9F27, #D85A30)",
+    accentColor: "#EF9F27",
+    verified: true,
+    category: "Volunteer win",
+    text: "Three new volunteers signed up for sorting and delivery support. Next step is matching roles by availability and transportation.",
+    attachments: [],
+    likedBy: ["maya-resources", "sam-students"],
+    comments: [
+      {
+        id: "comment-volunteer-1",
+        authorName: "Sam T.",
+        verified: false,
+        text: "I can cover Saturday morning if that helps.",
+        createdAt: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+      },
+    ],
+    createdAt: new Date(Date.now() - 1000 * 60 * 63).toISOString(),
+  },
+  {
+    id: "seed-students",
+    authorId: "elena-care",
+    authorName: "Elena M.",
+    authorHandle: "elenacares",
+    authorRole: "Family Resource Navigator",
+    avatarImage: "/avatars/avatar-1.svg",
+    avatarGradient: "linear-gradient(135deg, #0B1F3A, #1D9E75)",
+    accentColor: "#1D9E75",
+    verified: true,
+    category: "Student support",
+    text: "For college planning questions, I recommend starting with FAFSA, College Scorecard, and verified school counselor resources before looking at private scholarship lists.",
+    attachments: [],
+    likedBy: ["maya-resources", "jordan-shares", "sam-students"],
+    comments: [],
+    createdAt: new Date(Date.now() - 1000 * 60 * 86).toISOString(),
+  },
+];
 
 function readPosts() {
   try {
     const raw = localStorage.getItem(POSTS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const posts = JSON.parse(raw);
+      const hasOldSeed = posts.some(post => post.id === "seed-1" || String(post.text || "").toLowerCase().includes("demo"));
+      return hasOldSeed ? SEED_POSTS : posts;
+    }
   } catch {
     return [];
   }
 
-  return [
-    {
-      id: "seed-1",
-      authorId: "community-team",
-      authorName: "Community Compass Team",
-      authorRole: "Verified Organizer",
-      avatarGradient: "linear-gradient(135deg, #0B1F3A, #1D9E75)",
-      category: "Resource Tip",
-      text: "Welcome to the community board. Share resource updates, service projects, events, questions, and local wins so the site feels active and people-centered.",
-      attachments: [],
-      likedBy: [],
-      comments: [
-        {
-          id: "comment-seed-1",
-          authorName: "TSA Demo Member",
-          text: "This is a strong place to show judges how the community side would work with verified moderation.",
-          createdAt: new Date(Date.now() - 1000 * 60 * 38).toISOString(),
-        },
-      ],
-      createdAt: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
-    },
-  ];
+  return SEED_POSTS;
 }
 
 function writePosts(posts) {
@@ -38,6 +144,11 @@ function writePosts(posts) {
 
 export function getCommunityPosts() {
   const posts = readPosts();
+  writePosts(posts);
+  return posts;
+}
+
+export function cacheCommunityPosts(posts) {
   writePosts(posts);
   return posts;
 }
@@ -98,8 +209,59 @@ export function addCommunityComment(postId, user, text) {
   return posts;
 }
 
-export function resetCommunityDemo() {
+export function advanceCommunityActivity() {
+  const posts = getCommunityPosts();
+  if (!posts.length) return { posts, activity: null };
+
+  const index = Number(localStorage.getItem(ACTIVITY_KEY) || "0");
+  const postIndex = index % posts.length;
+  const member = COMMUNITY_MEMBERS[index % COMMUNITY_MEMBERS.length];
+  const commentText = ACTIVITY_COMMENTS[index % ACTIVITY_COMMENTS.length];
+  const shouldComment = index % 3 === 1;
+
+  const nextPosts = posts.map((post, currentIndex) => {
+    if (currentIndex !== postIndex) return post;
+
+    if (shouldComment) {
+      return {
+        ...post,
+        comments: [
+          ...post.comments,
+          {
+            id: `activity-comment-${Date.now()}-${index}`,
+            authorName: member.name,
+            verified: member.verified,
+            text: commentText,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      };
+    }
+
+    if (post.likedBy.includes(member.id)) return post;
+    return {
+      ...post,
+      likedBy: [...post.likedBy, member.id],
+    };
+  });
+
+  localStorage.setItem(ACTIVITY_KEY, String(index + 1));
+  writePosts(nextPosts);
+
+  return {
+    posts: nextPosts,
+    activity: {
+      id: `activity-${Date.now()}-${index}`,
+      name: member.name,
+      action: shouldComment ? "commented on" : "liked",
+      title: posts[postIndex].category,
+    },
+  };
+}
+
+export function resetCommunityFeed() {
   localStorage.removeItem(POSTS_KEY);
+  localStorage.removeItem(ACTIVITY_KEY);
   return getCommunityPosts();
 }
 
@@ -107,7 +269,7 @@ export async function filesToAttachments(files) {
   const selectedFiles = Array.from(files).slice(0, 4);
   return Promise.all(selectedFiles.map(file => new Promise((resolve, reject) => {
     if (file.size > 2.5 * 1024 * 1024) {
-      reject(new Error(`${file.name} is larger than the 2.5 MB demo upload limit.`));
+      reject(new Error(`${file.name} is larger than the 2.5 MB upload limit.`));
       return;
     }
 

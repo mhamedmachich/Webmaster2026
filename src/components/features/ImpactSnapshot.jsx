@@ -1,16 +1,17 @@
 import { EVENTS } from "../../data/events";
 import { FUNDING } from "../../data/funding";
-import { RESOURCES } from "../../data/resources";
+import { getResourceIndex, NATIONAL_RESOURCE_COUNT, STATE_PROFILES } from "../../data";
 import { VOLUNTEER_ROLES } from "../../data/volunteerRoles";
 
 export default function ImpactSnapshot({ actionCount = 0 }) {
   const volunteerOpenings = VOLUNTEER_ROLES.reduce((total, role) => total + role.spots, 0);
+  const resourceCount = getResourceIndex().length;
 
   const stats = [
-    { value: RESOURCES.length, label: "local resources", detail: "searchable by need, audience, urgency, and format" },
-    { value: EVENTS.length, label: "community events", detail: "with local registration state for demos" },
-    { value: volunteerOpenings, label: "volunteer openings", detail: "across food, education, seniors, and youth roles" },
-    { value: FUNDING.length, label: "funding paths", detail: "scholarships, grants, and community funding leads" },
+    { value: resourceCount, label: "resource entries", detail: `${NATIONAL_RESOURCE_COUNT} national resources plus state/local layers` },
+    { value: STATE_PROFILES.length, label: "state profiles", detail: "50 states plus Washington, D.C. with placeholder expansion slots" },
+    { value: volunteerOpenings, label: "local volunteer openings", detail: "retained in the Middletown local profile" },
+    { value: FUNDING.length + EVENTS.length, label: "local action leads", detail: "events and funding leads remain separated from national data" },
   ];
 
   return (

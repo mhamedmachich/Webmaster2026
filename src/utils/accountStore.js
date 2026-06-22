@@ -98,14 +98,26 @@ export function logoutLocalAccount() {
 }
 
 export function updateLocalProfile(nextProfile) {
+  if (!nextProfile?.id) return null;
   const users = getLocalUsers();
-  const updatedUsers = users.map(user => user.id === nextProfile.id ? { ...user, ...nextProfile, passwordHash:user.passwordHash } : user);
+  const existingUser = users.find(user => user.id === nextProfile.id);
+  const updatedUser = {
+    ...existingUser,
+    ...nextProfile,
+    passwordHash: existingUser?.passwordHash || "",
+  };
+  const updatedUsers = existingUser
+    ? users.map(user => user.id === nextProfile.id ? updatedUser : user)
+    : [...users, updatedUser];
   writeJson(USERS_KEY, updatedUsers);
-  return publicUser(updatedUsers.find(user => user.id === nextProfile.id));
+  localStorage.setItem(SESSION_KEY, updatedUser.id);
+  return publicUser(updatedUser);
 }
 
 export function verifyLocalAccount(userId) {
   const users = getLocalUsers();
+  const existingUser = users.find(user => user.id === userId);
+  if (!existingUser) return null;
   const updatedUsers = users.map(user => user.id === userId ? { ...user, emailVerified:true, verified:true } : user);
   writeJson(USERS_KEY, updatedUsers);
   return publicUser(updatedUsers.find(user => user.id === userId));

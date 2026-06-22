@@ -12,7 +12,7 @@ export default function ClubsPage({ toast_ }) {
   return (
     <div style={{ animation:"fadeIn 0.3s ease" }}>
       <PageHero title="Clubs & Organizations" subtitle="Find your community. Join a club, lead a team, build something great." color={C.green} end="#085041" icon="building" />
-      <div style={{ maxWidth:1100, margin:"0 auto", padding:"48px 24px" }}>
+      <div style={{ maxWidth:"var(--cc-container)", margin:"0 auto", padding:"48px 24px" }}>
         <div style={{ display:"flex", gap:8, marginBottom:28, flexWrap:"wrap" }}>
           {["All","STEM","Academic","Leadership","Business","Community"].map(cat => (
             <button

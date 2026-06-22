@@ -1,16 +1,17 @@
-import { RESOURCES } from "../../data/resources";
+import { getResourceIndex, STATE_PROFILES } from "../../data";
 import VisualIcon from "../ui/VisualIcon";
 
 export default function TrustPanel() {
-  const verified = RESOURCES.filter(resource => resource.verified).length;
-  const needsReview = RESOURCES.filter(resource => resource.needsReview).length;
-  const hoursVerified = RESOURCES.filter(resource => resource.hoursVerified).length;
+  const resources = getResourceIndex();
+  const verified = resources.filter(resource => resource.officialSource || resource.dataStatus === "source-linked").length;
+  const needsReview = resources.filter(resource => resource.needsReview).length;
+  const stateProfiles = STATE_PROFILES.length;
 
   const items = [
-    { label:"Verified source", value:verified, text:"Resource came from an official or direct organization source." },
-    { label:"Needs review", value:needsReview, text:"Information is useful for demo purposes but should be re-checked." },
-    { label:"Hours verified", value:hoursVerified, text:"Listed hours have a stronger confirmation signal in the data." },
-    { label:"Verify before use", value:"Always", text:"Users should confirm eligibility, hours, and availability with official sources." },
+    { label:"Source-linked", value:verified, text:"National resources link to official or locator sources whenever possible." },
+    { label:"State profiles", value:stateProfiles, text:"State profiles may be partial or placeholders until manually verified." },
+    { label:"Needs review", value:needsReview, text:"Sample or placeholder entries are labeled instead of treated as complete data." },
+    { label:"Verify before use", value:"Always", text:"Users should confirm eligibility, hours, availability, and deadlines on official websites." },
   ];
 
   return (
@@ -19,7 +20,7 @@ export default function TrustPanel() {
         <div>
           <div className="section-kicker">Trust & Verification</div>
           <h2 id="trust-heading" className="section-heading">Honest data, clearly labeled.</h2>
-          <p className="section-subtext">Community Compass does not claim live data. It shows what is verified, what needs review, and when users should confirm details directly.</p>
+          <p className="section-subtext">Community Compass does not claim live data. Verified date means when the student team last checked or linked the source; local data must be rechecked before public real-world use.</p>
         </div>
         <div className="premium-card" style={{ padding:"22px" }}>
           <div style={{ display:"grid", gap:12 }}>

@@ -9,7 +9,7 @@ export default function AIPage() {
       <div style={{ maxWidth:750, margin:"0 auto", padding:"48px 24px" }}>
         <AIChat />
         <div style={{ marginTop:14, textAlign:"center", fontSize:12, color:C.g400 }}>
-          Local demo responses only · verify resources before real-world use
+          Informational guidance only · verify resources before real-world use
         </div>
       </div>
     </div>

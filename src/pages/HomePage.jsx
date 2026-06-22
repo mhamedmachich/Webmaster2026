@@ -2,9 +2,9 @@ import { useMemo, useState } from "react";
 import { C } from "../data/colors";
 import { EVENTS } from "../data/events";
 import { RESOURCES } from "../data/resources";
-import CompassMatch from "../components/features/CompassMatch";
+import { getResourceIndex } from "../data";
 import ImpactSnapshot from "../components/features/ImpactSnapshot";
-import JudgeDemoPath from "../components/features/JudgeDemoPath";
+import ProductWalkthrough from "../components/features/ProductWalkthrough";
 import NeedHelpFast from "../components/features/NeedHelpFast";
 import TrustPanel from "../components/features/TrustPanel";
 import Tag from "../components/ui/Tag";
@@ -21,34 +21,39 @@ const JOURNEY_STEPS = [
 ];
 
 const RESOURCE_SHOWCASE = [
-  { icon:"food", title:"Food assistance", meta:"SNAP, pantries, same-week support", color:C.amber, span:"wide" },
-  { icon:"education", title:"Tutoring and student help", meta:"library spaces, school supplies, youth programs", color:C.blue },
-  { icon:"health", title:"Health and wellness", meta:"mental health, community clinics, crisis lines", color:C.coral, span:"tall" },
-  { icon:"hands", title:"Volunteer opportunities", meta:"urgent roles and local openings", color:C.teal },
+  { icon:"food", title:"Food assistance", meta:"SNAP, WIC, food bank locators, local pantries", color:C.amber, span:"wide" },
+  { icon:"education", title:"Education and student help", meta:"FAFSA, college tools, youth programs, libraries", color:C.blue },
+  { icon:"health", title:"Health and wellness", meta:"health centers, treatment locators, crisis lines", color:C.coral, span:"tall" },
+  { icon:"hands", title:"Volunteer opportunities", meta:"national platforms and local openings", color:C.teal },
   { icon:"calendar", title:"Local events", meta:"workshops, fairs, service drives", color:C.purple },
   { icon:"building", title:"Trusted organizations", meta:"official sources and verification dates", color:C.green, span:"wide" },
 ];
 
 const TRUST_SIGNALS = [
-  { label:"Official source links", value:"14", text:"Each resource keeps users close to the organization that owns the information." },
-  { label:"Verification dates", value:"2026", text:"Dates are visible so judges and users can see when data was last reviewed." },
-  { label:"Review flags", value:"Clear", text:"Needs-review labels are shown instead of hidden, keeping the project honest." },
-  { label:"Action safety", value:"Local", text:"The guide uses demo responses only and never exposes external API keys." },
+  { label:"National resources", value:"60+", text:"National portals and locators provide useful starting points without fake local offices." },
+  { label:"State profiles", value:"51", text:"Every state plus Washington, D.C. has a profile ready for verified expansion." },
+  { label:"Review flags", value:"Clear", text:"Needs-review, sample, and placeholder labels are shown instead of hidden." },
+  { label:"Safe guidance", value:"Built-in", text:"The guide uses static responses and keeps sensitive configuration out of the browser." },
 ];
 
 export default function HomePage({ nav, quickHelp, toggleSave, savedIds, actionCount, setResourceSearch }) {
   const [heroQuery, setHeroQuery] = useState("");
+  const resourceIndex = useMemo(() => getResourceIndex(), []);
+  const bestResource = useMemo(
+    () => resourceIndex.find(resource => resource.category === "Food Assistance") || resourceIndex[0] || RESOURCES[0],
+    [resourceIndex]
+  );
   const heroSuggestions = useMemo(() => {
     const query = heroQuery.trim().toLowerCase();
     if (!query) {
       return STARTER_SEARCHES.map(label => ({ label, type:"Suggested search", value:label }));
     }
 
-    return RESOURCES
-      .filter(resource => `${resource.title} ${resource.category} ${resource.desc} ${resource.tags.join(" ")}`.toLowerCase().includes(query))
+    return resourceIndex
+      .filter(resource => `${resource.title} ${resource.category} ${resource.description || resource.desc} ${(resource.tags || []).join(" ")}`.toLowerCase().includes(query))
       .slice(0, 5)
       .map(resource => ({ label:resource.title, type:resource.category, value:resource.title }));
-  }, [heroQuery]);
+  }, [heroQuery, resourceIndex]);
 
   const runHeroSearch = (value = heroQuery) => {
     const query = value.trim();
@@ -77,12 +82,12 @@ export default function HomePage({ nav, quickHelp, toggleSave, savedIds, actionC
           <div className="signature-hero__copy">
             <div className="premium-eyebrow">
               <img src="/brand/community-compass-logo.png" alt="" className="eyebrow-logo" />
-              TSA Webmaster 2026 | Community Compass
+              Community Compass Resource Network
             </div>
-            <h1 id="home-hero-title">Find the right local starting point faster.</h1>
+            <h1 id="home-hero-title">Find the right support starting point faster.</h1>
             <p>
-              A premium civic-tech resource launchpad that helps people move from uncertainty to
-              trusted local support with guided search, verification labels, and saved next steps.
+              A civic-tech resource launchpad that helps people move from uncertainty to
+              national, state, and local support with guided search, verification labels, and saved next steps.
             </p>
             <div className="premium-actions">
               <button className="premium-button premium-button--primary" onClick={() => nav("resources")}>Launch Resource Finder</button>
@@ -98,7 +103,7 @@ export default function HomePage({ nav, quickHelp, toggleSave, savedIds, actionC
             <div className="hero-command-panel">
               <div className="command-panel__topline">
                 <span>Resource command center</span>
-                <span className="status-badge" style={{ background:C.tealLight, color:C.teal }}>Live demo</span>
+                <span className="status-badge" style={{ background:C.tealLight, color:C.teal }}>Static preview</span>
               </div>
               <form className="hero-search-shell" onSubmit={(event) => { event.preventDefault(); runHeroSearch(); }}>
                 <VisualIcon name="search" size={22} color="currentColor" />
@@ -132,10 +137,10 @@ export default function HomePage({ nav, quickHelp, toggleSave, savedIds, actionC
               <div className="hero-match-card">
                 <div>
                   <span className="section-kicker" style={{ marginBottom:4 }}>Best match</span>
-                  <strong>{RESOURCES[0].title}</strong>
-                  <p>{RESOURCES[0].desc.slice(0, 92)}...</p>
+                  <strong>{bestResource.title}</strong>
+                  <p>{(bestResource.description || bestResource.desc).slice(0, 92)}...</p>
                 </div>
-                <button onClick={() => toggleSave(RESOURCES[0].id)}>{savedIds.has(RESOURCES[0].id) ? "Saved" : "Save"}</button>
+                <button onClick={() => toggleSave(bestResource.id)}>{savedIds.has(bestResource.id) ? "Saved" : "Save"}</button>
               </div>
             </div>
 
@@ -192,17 +197,15 @@ export default function HomePage({ nav, quickHelp, toggleSave, savedIds, actionC
                   <span>{item.meta}</span>
                 </div>
                 <div className="mosaic-card__meta">
-                  <span>verified</span>
-                  <span>updated</span>
-                  <span>local</span>
+                  <span>source-linked</span>
+                  <span>layered</span>
+                  <span>verified labels</span>
                 </div>
               </button>
             ))}
           </div>
         </div>
       </section>
-
-      <CompassMatch onSave={toggleSave} savedIds={savedIds} onOpenResources={() => nav("resources")} />
 
       <section className="trust-showcase" aria-labelledby="trust-showcase-heading">
         <div className="premium-shell">
@@ -228,22 +231,55 @@ export default function HomePage({ nav, quickHelp, toggleSave, savedIds, actionC
 
       <ImpactSnapshot actionCount={actionCount} />
 
-      <section className="mission-section" aria-labelledby="mission-heading">
-        <div className="mission-panel">
-          <div>
-            <div className="section-kicker">Why This Matters</div>
-            <h2 id="mission-heading">When people need help, the hardest step is often knowing where to start.</h2>
+      <section className="scale-story-section" aria-labelledby="scale-story-heading">
+        <div className="premium-shell">
+          <div className="scale-story-header">
+            <div>
+              <div className="section-kicker">National Scale Architecture</div>
+              <h2 id="scale-story-heading" className="section-heading">A national system with a local handoff.</h2>
+            </div>
+            <p>
+              The database works like a handoff: trusted national starting points, state profiles for expansion,
+              and local records that only become public-facing when they can be verified.
+            </p>
           </div>
-          <p>
-            Community Compass reduces confusion by turning local services into a guided,
-            trustworthy, action-oriented experience. It is designed to feel modern enough for
-            judges, but grounded enough for real community use.
-          </p>
+
+          <div className="scale-story-grid">
+            <article className="scale-story-card scale-story-card--wide">
+              <img src="/brand/scale-resource-coordination.jpg" alt="Volunteers coordinating donations with a laptop" />
+              <div>
+                <span>Layer 1 + 2</span>
+                <h3>Coordinate the source of truth.</h3>
+                <p>
+                  National portals and state placeholders give the team a reliable backbone before any local
+                  listing is added. The goal is structured coverage, not a pile of unverified links.
+                </p>
+              </div>
+            </article>
+
+            <article className="scale-story-card">
+              <img src="/brand/scale-community-support.jpg" alt="Volunteers distributing supplies at a community table" />
+              <div>
+                <span>Layer 3</span>
+                <h3>Make the last step local.</h3>
+                <p>
+                  Local profiles turn broad resource categories into practical next steps: who can help,
+                  what to check first, and which details still need confirmation.
+                </p>
+              </div>
+            </article>
+
+            <div className="scale-story-proof" aria-label="Community Compass data model">
+              <div><strong>National</strong><span>hotlines, locators, federal portals</span></div>
+              <div><strong>State</strong><span>profiles, categories, expansion slots</span></div>
+              <div><strong>Local</strong><span>verified profiles added community by community</span></div>
+            </div>
+          </div>
         </div>
       </section>
 
       <TrustPanel />
-      <JudgeDemoPath nav={nav} />
+      <ProductWalkthrough nav={nav} />
 
       <section className="final-launch-section" aria-labelledby="final-launch-heading">
         <div className="final-launch-card">
@@ -251,7 +287,7 @@ export default function HomePage({ nav, quickHelp, toggleSave, savedIds, actionC
           <div>
             <div className="section-kicker">Start Exploring</div>
             <h2 id="final-launch-heading">Discover trusted support near you.</h2>
-            <p>Use the Resource Finder, Compass Match, or Need Help Fast mode to find a better starting point in seconds.</p>
+            <p>Use the Resource Finder or Need Help Fast mode to find a better starting point in seconds.</p>
           </div>
           <button className="premium-button premium-button--primary" onClick={() => nav("resources")}>Launch Community Compass</button>
         </div>

@@ -1,11 +1,11 @@
 import { C } from "../../data/colors";
 
 export default function FilterSidebar({ filters, setFilters, saved }) {
-  const cats = ["All categories","Food","Mental Health","Student & Family Support","Learning Resources","Housing","Employment","Legal Aid","Youth & Recreation","Utilities & Housing","Health"];
+  const cats = ["All categories","Emergency & Crisis","Food Assistance","Housing & Utilities","Health Care","Mental Health","Legal Aid","Jobs & Career","Education & College","Youth Programs","Disability Support","Senior Support","Veterans & Military Families","Disaster Relief","Transportation","Volunteering","Grants & Funding"];
   const audiences = ["Everyone","Students","Families","Adults","Seniors"];
-  const costs = ["Any cost","Free","Sliding scale","Low cost"];
-  const urgencies = ["Any timing","Same Week","Routine"];
-  const formats = ["Any format","In-person","Phone/Online","Online/Phone","In-person/Phone"];
+  const costs = ["Any cost","Free","Sliding scale","Low-cost","Varies"];
+  const urgencies = ["Any timing","Emergency","Same Day","Same Week","Routine","Varies"];
+  const formats = ["Any format","Online","Phone","Text","In-person","Locator"];
   const langs = ["Any language","English","Spanish"];
 
   const update = (key, val) => setFilters(f => ({ ...f, [key]: val }));

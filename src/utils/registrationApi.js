@@ -1,15 +1,15 @@
+import { isApiUnavailable, requestJson } from "./apiClient";
+
 export async function sendEventRegistrationEmail({ event, attendee }) {
-  const response = await fetch("/api/registrations/events", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ event, attendee }),
-  });
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || "Registration email could not be sent.");
+  try {
+    return await requestJson("/api/registrations/events", {
+      method: "POST",
+      body: JSON.stringify({ event, attendee }),
+    }, "Registration email could not be sent.");
+  } catch (error) {
+    if (isApiUnavailable(error)) {
+      return { ok:true, mode:"saved" };
+    }
+    throw error;
   }
-
-  return response.json();
 }

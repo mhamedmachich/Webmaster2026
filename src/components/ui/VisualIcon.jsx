@@ -53,6 +53,13 @@ const paths = {
       <path d="M9 20h6" />
     </>
   ),
+  alert: (
+    <>
+      <path d="M12 4 3.5 19h17L12 4Z" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </>
+  ),
   food: (
     <>
       <path d="M7 4v16M10 4v7a3 3 0 0 1-6 0V4" />

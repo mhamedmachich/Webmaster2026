@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { C } from "../../data/colors";
+import { getCombinedResources } from "../../data/location/locationLookup";
 import { getLocalGuideResponse } from "../../utils/localGuideResponses";
+import LocationSelector from "../location/LocationSelector";
 import VisualIcon from "../ui/VisualIcon";
 
 export default function AIChat() {
-  const [msgs, setMsgs] = useState([{ role:"assistant", text:"Hi, I can help you narrow down local services, application steps, student programs, and community support options around Middletown." }]);
+  const [msgs, setMsgs] = useState([{ role:"assistant", text:"Hi, I can help you narrow down national, state, or local services, application steps, student programs, and community support options." }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [locationContext, setLocationContext] = useState({ zip:"", stateAbbr:"", localProfileId:"", includeNational:true });
   const messagesRef = useRef(null);
+  const resourceCount = getCombinedResources(locationContext).length;
 
   useEffect(() => {
     const el = messagesRef.current;
@@ -26,10 +30,10 @@ export default function AIChat() {
     setMsgs(m => [...m, { role:"user", text:msg }]);
     setLoading(true);
     setTimeout(() => {
-      setMsgs(m => [...m, { role:"assistant", text:getLocalGuideResponse(msg) }]);
+      setMsgs(m => [...m, { role:"assistant", text:getLocalGuideResponse(msg, locationContext) }]);
       setLoading(false);
     }, 650);
-  }, [input, loading]);
+  }, [input, loading, locationContext]);
 
   return (
     <div className="glass-panel" style={{ overflow:"hidden", maxWidth:760, margin:"0 auto" }}>
@@ -39,11 +43,11 @@ export default function AIChat() {
         </div>
         <div>
           <div style={{ color:"#fff", fontWeight:700, fontSize:15 }}>Resource Navigator</div>
-          <div style={{ color:C.tealMid, fontSize:12 }}>Local demo guidance | Always available</div>
+          <div style={{ color:C.tealMid, fontSize:12 }}>Built-in guidance | Always available</div>
         </div>
         <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6 }}>
           <div style={{ width:7, height:7, borderRadius:"50%", background:C.teal }} />
-          <span style={{ color:C.tealMid, fontSize:12 }}>Online</span>
+          <span style={{ color:C.tealMid, fontSize:12 }}>Static guide</span>
         </div>
       </div>
       <div ref={messagesRef} style={{ height:360, overflowY:"auto", padding:"1.25rem 1.5rem", display:"flex", flexDirection:"column", gap:12, overscrollBehavior:"contain", background:"linear-gradient(180deg,rgba(248,250,252,0.8),rgba(255,255,255,0.88))" }}>
@@ -69,6 +73,9 @@ export default function AIChat() {
           ))}
         </div>
       )}
+      <div style={{ padding:"0 1.5rem 1rem" }}>
+        <LocationSelector value={locationContext} onChange={setLocationContext} resultCount={resourceCount} />
+      </div>
       <div style={{ padding:"0.75rem 1.5rem 1.25rem", display:"flex", gap:10, borderTop:"1px solid #E9ECEF" }}>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==="Enter" && send()}
           placeholder="Ask about any service or resource..."

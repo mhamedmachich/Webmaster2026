@@ -1,7 +1,7 @@
 import { C } from "./colors";
 
 export const CLUBS = [
-  { id:1, name:"TSA Chapter", school:"Appoquinimink High School", type:"STEM", members:42, meeting:"Tuesdays 3pm", icon:"wrench", color:C.teal, desc:"Technology Student Association - engineering, coding, and innovation competitions." },
+  { id:1, name:"Technology Innovation Club", school:"Appoquinimink High School", type:"STEM", members:42, meeting:"Tuesdays 3pm", icon:"wrench", color:C.teal, desc:"Hands-on engineering, coding, and innovation projects for students." },
   { id:2, name:"NHS", school:"Appoquinimink High School", type:"Academic", members:78, meeting:"1st Monday/month", icon:"trophy", color:C.purple, desc:"National Honor Society recognizing scholarship, leadership, service, and character." },
   { id:3, name:"Model UN", school:"Appoquinimink High School", type:"Leadership", members:34, meeting:"Thursdays 3:30pm", icon:"globe", color:C.blue, desc:"Debate global issues, practice diplomacy, and compete in regional MUN conferences." },
   { id:4, name:"DECA", school:"Appoquinimink High School", type:"Business", members:56, meeting:"Wednesdays 3pm", icon:"funding", color:C.amber, desc:"Business and entrepreneurship club with statewide and national competitions." },

@@ -16,7 +16,7 @@ export default function StudentsPage({ nav }) {
   return (
     <div style={{ animation:"fadeIn 0.3s ease" }}>
       <PageHero title="Student Hub" subtitle="Resources, support, and opportunities specifically for K-12 and college students in the Middletown area." color={C.purple} end="#3C3489" icon="education" />
-      <div style={{ maxWidth:1100, margin:"0 auto", padding:"48px 24px" }}>
+      <div style={{ maxWidth:"var(--cc-container)", margin:"0 auto", padding:"48px 24px" }}>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:20, marginBottom:48 }}>
           {cards.map(card => (
             <div key={card.title} className="card-hover" style={{ background:"#fff", border:"1.5px solid #E9ECEF", borderRadius:16, padding:"1.5rem", transition:"all 0.2s", borderTop:`4px solid ${card.color}` }}>

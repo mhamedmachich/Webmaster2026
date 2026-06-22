@@ -17,10 +17,16 @@ import { z } from "zod";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, "data");
 const dbPath = path.join(dataDir, "community-db.json");
+const clientDistDir = path.join(__dirname, "..", "dist");
+const clientIndexPath = path.join(clientDistDir, "index.html");
 const port = Number(process.env.API_PORT || 8787);
-const clientOrigin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+const clientOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173")
+  .split(",")
+  .map(origin => origin.trim())
+  .filter(Boolean);
 const jwtSecret = process.env.JWT_SECRET || "dev-only-change-this-secret";
 const isProduction = process.env.NODE_ENV === "production";
+const hasClientBuild = await fs.access(clientIndexPath).then(() => true).catch(() => false);
 
 if (isProduction && jwtSecret === "dev-only-change-this-secret") {
   throw new Error("Set JWT_SECRET before running the API in production.");
@@ -48,7 +54,13 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
   contentSecurityPolicy: false,
 }));
-app.use(cors({ origin:clientOrigin, credentials:true }));
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || clientOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("Origin not allowed by CORS."));
+  },
+  credentials:true,
+}));
 app.use(express.json({ limit:"350kb" }));
 app.use(cookieParser());
 app.use(rateLimit({ windowMs:15 * 60 * 1000, limit:300, standardHeaders:true, legacyHeaders:false }));
@@ -313,7 +325,7 @@ function createTransport() {
 }
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok:true, service:"community-compass-api" });
+  res.json({ ok:true, service:"community-compass-api", client:hasClientBuild });
 });
 
 app.post("/api/auth/signup", authLimiter, async (req, res) => {
@@ -492,7 +504,17 @@ app.post("/api/registrations/events", async (req, res) => {
   res.json({ ok:true, mode, messageId:info.messageId });
 });
 
+if (hasClientBuild) {
+  app.use(express.static(clientDistDir));
+  app.get(/^(?!\/api(?:\/|$)).*/, (_req, res) => {
+    res.sendFile(clientIndexPath);
+  });
+}
+
 app.use((error, _req, res, _next) => {
+  if (error.message === "Origin not allowed by CORS.") {
+    return res.status(403).json({ error:"Origin not allowed." });
+  }
   if (error instanceof z.ZodError) {
     return res.status(400).json({ error:"Invalid request data.", details:error.flatten() });
   }

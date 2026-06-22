@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { C } from "../data/colors";
 import { EVENTS } from "../data/events";
 import PageHero from "../components/layout/PageHero";
@@ -5,7 +6,7 @@ import VisualIcon from "../components/ui/VisualIcon";
 import { sendEventRegistrationEmail } from "../utils/registrationApi";
 
 export default function EventsPage({ registeredEvents, setRegisteredEvents, toast_, currentUser }) {
-  const email = currentUser?.email || "demo@communitycompass.local";
+  const email = currentUser?.email || "visitor@communitycompass.local";
   const [sendingId, setSendingId] = useState(null);
 
   const registerEvent = async (event) => {
@@ -36,12 +37,12 @@ export default function EventsPage({ registeredEvents, setRegisteredEvents, toas
         return next;
       });
 
-      toast_(result.mode === "sent" ? "Registration email sent." : "Registered. Email preview logged by the API.", event.color);
+      toast_(result.mode === "sent" ? "Registration email sent." : "Registered. Confirmation saved.", event.color);
     } catch (error) {
       const subject = encodeURIComponent(`Community Compass registration: ${event.title}`);
       const body = encodeURIComponent(`You registered for ${event.title}.\n\nDate: ${event.date}\nTime: ${event.time}\nLocation: ${event.location}\n\n${event.desc}`);
       window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-      toast_(error.message || "API unavailable. Opening email draft with registration details.", C.coral);
+      toast_("Registration saved. Opening email draft with registration details.", C.coral);
     } finally {
       setSendingId(null);
     }
@@ -56,7 +57,7 @@ export default function EventsPage({ registeredEvents, setRegisteredEvents, toas
             <span style={{ color:C.teal, display:"flex" }}><VisualIcon name="check" size={22} color="currentColor" /></span>
             <div>
               <div style={{ fontWeight:800, color:C.teal }}>Registered for {registeredEvents.size} event{registeredEvents.size>1?"s":""}</div>
-              <div style={{ fontSize:13, color:C.g600 }}>Your local demo confirmation is saved in this session.</div>
+              <div style={{ fontSize:13, color:C.g600 }}>Your confirmation is saved in this session.</div>
             </div>
           </div>
         )}

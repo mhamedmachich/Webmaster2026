@@ -1,38 +1,39 @@
 import { useMemo, useState } from "react";
 import { C } from "../../data/colors";
-import { RESOURCES } from "../../data/resources";
+import { getResourceIndex } from "../../data";
+import { CATEGORY_ALIASES } from "../../data/national/nationalCategories";
 import Tag from "../ui/Tag";
 
 const needs = [
-  { label:"Food", value:"Food" },
-  { label:"Housing", value:"Housing" },
+  { label:"Food", value:"Food Assistance" },
+  { label:"Housing", value:"Housing & Utilities" },
   { label:"Mental health", value:"Mental Health" },
-  { label:"Student support", value:"Student & Family Support" },
-  { label:"Jobs", value:"Employment" },
+  { label:"Student support", value:"Education & College" },
+  { label:"Jobs", value:"Jobs & Career" },
   { label:"Legal aid", value:"Legal Aid" },
 ];
 
 const audiences = ["Students", "Families", "Adults", "Seniors"];
-const timings = ["Same Week", "Routine"];
+const timings = ["Same Day", "Same Week", "Routine"];
 
-export default function CompassMatch({ onSave, savedIds, onOpenResources }) {
-  const [need, setNeed] = useState("Food");
+export default function CompassMatch({ onSave, savedIds, onOpenResources, resources = getResourceIndex() }) {
+  const [need, setNeed] = useState("Food Assistance");
   const [audience, setAudience] = useState("Students");
   const [timing, setTiming] = useState("Same Week");
 
   const matches = useMemo(() => {
-    const exact = RESOURCES.filter(resource =>
-      resource.category === need &&
-      resource.audience.includes(audience) &&
+    const exact = resources.filter(resource =>
+      (CATEGORY_ALIASES[resource.category] || resource.category) === need &&
+      resource.audience?.includes(audience) &&
       resource.urgency === timing
     );
-    const broad = RESOURCES.filter(resource =>
-      resource.category === need ||
-      resource.audience.includes(audience) ||
+    const broad = resources.filter(resource =>
+      (CATEGORY_ALIASES[resource.category] || resource.category) === need ||
+      resource.audience?.includes(audience) ||
       resource.urgency === timing
     );
     return (exact.length ? exact : broad).slice(0, 3);
-  }, [need, audience, timing]);
+  }, [need, audience, timing, resources]);
 
   return (
     <section className="premium-shell" aria-labelledby="compass-match-heading">
@@ -41,7 +42,7 @@ export default function CompassMatch({ onSave, savedIds, onOpenResources }) {
           <div>
             <div className="section-kicker">Compass Match</div>
             <h2 id="compass-match-heading" className="section-heading" style={{ fontSize:"clamp(1.9rem,3vw,2.8rem)" }}>A guided matcher for real needs.</h2>
-            <p className="section-subtext">Answer three quick prompts and get a local starting point using existing resource data.</p>
+            <p className="section-subtext">Answer three quick prompts and get a national, state, or local starting point using the current coverage context.</p>
           </div>
           <button className="premium-button premium-button--teal" onClick={onOpenResources}>Open full finder</button>
         </div>
@@ -57,7 +58,7 @@ export default function CompassMatch({ onSave, savedIds, onOpenResources }) {
                 <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"start" }}>
                   <div>
                     <h3 style={{ color:"var(--cc-ink)", fontSize:16, marginBottom:7 }}>{resource.title}</h3>
-                    <p style={{ color:"var(--cc-muted)", fontSize:13, lineHeight:1.55 }}>{resource.desc}</p>
+                    <p style={{ color:"var(--cc-muted)", fontSize:13, lineHeight:1.55 }}>{resource.description || resource.desc}</p>
                   </div>
                   <button
                     onClick={() => onSave(resource.id)}

@@ -7,7 +7,6 @@ export const NAV = [
   { id:"volunteering", label:"Volunteering" },
   { id:"funding", label:"Funding" },
   { id:"events", label:"Events" },
-  { id:"tsa", label:"TSA" },
   { id:"ai", label:"Guide" },
   { id:"auth", label:"Login" },
 ];

@@ -23,11 +23,10 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: "Project",
-    icon: "wrench",
+    label: "Tools",
+    icon: "guide",
     items: [
-      { id: "tsa", label: "TSA", description: "Chapter and competition info" },
-      { id: "ai", label: "Guide", description: "Local resource guidance" },
+      { id: "ai", label: "Guide", description: "National and local guidance" },
     ],
   },
 ];

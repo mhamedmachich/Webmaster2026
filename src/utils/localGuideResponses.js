@@ -1,41 +1,63 @@
+import { filterResources, getCombinedResources, getStateFromZip, getStateProfileByAbbreviation } from "../data/location/locationLookup";
+
 function mentions(text, terms) {
   return terms.some((term) => text.includes(term));
 }
 
-export function getLocalGuideResponse(message) {
+const CATEGORY_RULES = [
+  { category:"Emergency & Crisis", terms:["emergency", "crisis", "911", "988", "hotline", "urgent"] },
+  { category:"Food Assistance", terms:["food", "snap", "hungry", "meal", "pantry", "wic"] },
+  { category:"Mental Health", terms:["mental health", "therapy", "counselor", "substance", "treatment"] },
+  { category:"Housing & Utilities", terms:["housing", "rent", "eviction", "utilities", "electric", "heat"] },
+  { category:"Jobs & Career", terms:["job", "career", "resume", "employment", "training", "apprentice"] },
+  { category:"Legal Aid", terms:["legal", "lawyer", "attorney", "tenant rights", "eviction notice"] },
+  { category:"Education & College", terms:["student", "teen", "school", "tutoring", "college", "fafsa", "scholarship"] },
+  { category:"Volunteering", terms:["volunteer", "service", "hours"] },
+  { category:"Grants & Funding", terms:["grant", "funding", "scholarship", "money"] },
+];
+
+function getCategoryForMessage(text) {
+  return CATEGORY_RULES.find(rule => mentions(text, rule.terms))?.category || "";
+}
+
+function getContextLabel(context) {
+  const stateAbbr = context.stateAbbr || getStateFromZip(context.zip);
+  const state = getStateProfileByAbbreviation(stateAbbr);
+  if (context.localProfileId) return "your selected local profile";
+  if (state) return state.name;
+  return "national coverage";
+}
+
+export function getLocalGuideResponse(message, context = {}) {
   const text = message.toLowerCase();
+  const category = getCategoryForMessage(text);
+  const resources = getCombinedResources({
+    zip: context.zip,
+    stateAbbr: context.stateAbbr,
+    localProfileId: context.localProfileId,
+    includeNational: true,
+  });
 
-  if (mentions(text, ["food", "snap", "hungry", "meal", "pantry"])) {
-    return "For food help, start with the Food Bank of Delaware for local distributions, Delaware Health & Social Services for SNAP, and the Resource Finder's food category for nearby pantry-style options.";
+  const matches = category
+    ? filterResources(resources, { cat:category, search:text }).slice(0, 3)
+    : filterResources(resources, { search:text }).slice(0, 3);
+
+  const contextLabel = getContextLabel(context);
+
+  if (matches.length) {
+    const suggestions = matches
+      .map(resource => `${resource.title} (${resource.scope}${resource.locatorUrl ? ", locator" : resource.officialSource ? ", official source" : ""})`)
+      .join("; ");
+    return `For ${contextLabel}, start with: ${suggestions}. Open the source links in the Resource Finder and verify eligibility, hours, availability, and deadlines before taking action.`;
   }
 
-  if (mentions(text, ["mental health", "crisis", "therapy", "counselor"])) {
-    return "For mental health support, Delaware Guidance Services can help children, teens, and families. Use the Resource Finder's mental health category to compare counseling, youth support, and verified organization links.";
+  if (mentions(text, ["emergency", "danger", "unsafe"])) {
+    return "If there is immediate danger, call 911. For mental health crisis support, call or text 988. For local referrals, use 211. The Resource Finder lists these national starting points without needing a local profile.";
   }
 
-  if (mentions(text, ["housing", "rent", "eviction", "utilities"])) {
-    return "For housing, rent, or eviction support, Housing Alliance Delaware is a strong starting resource. For utility bills, review LIHEAP eligibility through Delaware Health & Social Services.";
+  if (category) {
+    return `I found the ${category} category, but not a strong text match. Try the Resource Finder with a ZIP, state, or local profile selected. National resources appear first when no location is selected.`;
   }
 
-  if (mentions(text, ["job", "career", "resume", "employment"])) {
-    return "For job and career help, Delaware JobLink offers job search tools, employment listings, and career support. Check the Events page for resume workshops and local career sessions.";
-  }
-
-  if (mentions(text, ["legal", "lawyer", "attorney", "tenant rights", "eviction notice"])) {
-    return "For legal help, start with Legal Aid Society of Delaware for civil legal issues such as housing, benefits, and family law. Use the Resources page to compare format, language, and verification details.";
-  }
-
-  if (mentions(text, ["student", "teen", "school", "tutoring"])) {
-    return "For student support, visit the Student Hub for tutoring, school supplies, youth programs, and library resources. Appoquinimink Library and local youth programs are strong first places to check.";
-  }
-
-  if (mentions(text, ["volunteer"])) {
-    return "The Volunteering page lists current roles, urgent openings, hours, and organizations. You can apply directly from each role card and track which roles you have already applied for.";
-  }
-
-  if (mentions(text, ["grant", "funding", "scholarship"])) {
-    return "The Funding page lists grants, scholarships, deadlines, award amounts, and eligibility notes. Start there, then check the Events page for grant writing help.";
-  }
-
-  return "Try searching the Resources page by category, audience, urgency, format, language, or saved resources. If you are unsure where to start, use Need Help Fast or Compass Match to narrow the first step.";
+  return "Try searching by need, ZIP code, state, or local profile. Community Compass uses static national, state, and local data layers and points users to official source links whenever possible.";
 }

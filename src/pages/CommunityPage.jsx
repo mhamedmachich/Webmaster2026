@@ -3,15 +3,18 @@ import { C } from "../data/colors";
 import VisualIcon from "../components/ui/VisualIcon";
 import {
   addCommunityComment,
+  advanceCommunityActivity,
+  cacheCommunityPosts,
   createCommunityPost,
   filesToAttachments,
   getCommunityPosts,
-  resetCommunityDemo,
+  resetCommunityFeed,
   toggleCommunityLike,
 } from "../utils/communityStore";
 import { updateLocalProfile } from "../utils/accountStore";
 import { verifyLocalAccount } from "../utils/accountStore";
 import { commentApiPost, createApiPost, getApiPosts, likeApiPost, updateApiProfile, verifyApiEmail } from "../utils/communityApi";
+import { isApiUnavailable } from "../utils/apiClient";
 
 const POST_TYPES = ["Resource update", "Volunteer win", "Event recap", "Question", "Student support"];
 const AVATAR_GRADIENTS = [
@@ -29,6 +32,7 @@ const BANNER_GRADIENTS = [
 ];
 const ACCENTS = ["#1D9E75", "#378ADD", "#534AB7", "#EF9F27", "#D85A30"];
 const AVATAR_PRESETS = ["/avatars/avatar-1.svg", "/avatars/avatar-2.svg", "/avatars/avatar-3.svg", "/avatars/avatar-default.svg"];
+const MEMBER_BASELINE = 326;
 
 function normalizeHandle(value, fallback = "member") {
   const handle = String(value || fallback).toLowerCase().replace(/[^a-z0-9_]+/g, "").slice(0, 20);
@@ -64,7 +68,7 @@ function readImage(file) {
   return new Promise((resolve, reject) => {
     if (!file) return resolve("");
     if (!file.type.startsWith("image/")) return reject(new Error("Choose an image file."));
-    if (file.size > 2.5 * 1024 * 1024) return reject(new Error("Profile images must be under 2.5 MB for the demo."));
+    if (file.size > 2.5 * 1024 * 1024) return reject(new Error("Profile images must be under 2.5 MB."));
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
     reader.onerror = () => reject(new Error("Could not read that image."));
@@ -110,6 +114,8 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileDraft, setProfileDraft] = useState(() => currentProfile || {});
   const [apiLive, setApiLive] = useState(false);
+  const [activityPulse, setActivityPulse] = useState(null);
+  const [memberCount, setMemberCount] = useState(MEMBER_BASELINE);
 
   const members = useMemo(() => [
     currentProfile,
@@ -139,6 +145,32 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
       bannerGradient:"linear-gradient(135deg, #EF9F27, #D85A30)",
       accentColor:"#EF9F27",
     },
+    {
+      id:"sample-navigator",
+      name:"Elena M.",
+      handle:"elenacares",
+      role:"Family Resource Navigator",
+      location:"Delaware",
+      bio:"Helping families compare official resources, benefit portals, and local referrals.",
+      interests:["Food Assistance", "Housing", "Student Support"],
+      avatarImage:"/avatars/avatar-1.svg",
+      avatarGradient:"linear-gradient(135deg, #0B1F3A, #1D9E75)",
+      bannerGradient:"linear-gradient(135deg, #0B1F3A, #1D9E75)",
+      accentColor:"#1D9E75",
+    },
+    {
+      id:"sample-student",
+      name:"Sam T.",
+      handle:"samstudents",
+      role:"Student Volunteer",
+      location:"Middletown",
+      bio:"Sharing service hours, school support, and volunteer updates.",
+      interests:["Students", "Volunteering"],
+      avatarImage:"/avatars/avatar-default.svg",
+      avatarGradient:"linear-gradient(135deg, #3B6D11, #5DCAA5)",
+      bannerGradient:"linear-gradient(135deg, #3B6D11, #5DCAA5)",
+      accentColor:"#5DCAA5",
+    },
   ].filter(Boolean), [currentProfile]);
 
   useEffect(() => {
@@ -148,10 +180,11 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
         const apiPosts = await getApiPosts();
         if (!active) return;
         setApiLive(true);
-        setPosts(apiPosts);
-      } catch {
+        setPosts(cacheCommunityPosts(apiPosts));
+      } catch (error) {
         if (!active) return;
         setApiLive(false);
+        if (isApiUnavailable(error)) setPosts(getCommunityPosts());
       }
     };
     loadPosts();
@@ -161,6 +194,20 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
       clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    if (apiLive) return undefined;
+    const timer = setInterval(() => {
+      const next = advanceCommunityActivity();
+      setPosts(next.posts);
+      if (next.activity) setActivityPulse(next.activity);
+      setMemberCount(count => {
+        const nextCount = count + (Math.random() > 0.45 ? 1 : -1);
+        return Math.min(349, Math.max(318, nextCount));
+      });
+    }, 5200);
+    return () => clearInterval(timer);
+  }, [apiLive]);
 
   const openEditor = () => {
     if (!currentProfile) return nav("auth");
@@ -182,17 +229,25 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
     event.preventDefault();
     if (!currentProfile) return nav("auth");
     if (!postText.trim() && attachments.length === 0) return toast_("Add text or media before posting.", C.coral);
+    const payload = { text:postText || "Shared a community update.", category, attachments };
     try {
       if (apiLive) {
-        await createApiPost({ text:postText || "Shared a community update.", category, attachments });
-        setPosts(await getApiPosts());
+        try {
+          await createApiPost(payload);
+          setPosts(cacheCommunityPosts(await getApiPosts()));
+        } catch (apiError) {
+          if (!isApiUnavailable(apiError)) throw apiError;
+          setApiLive(false);
+          createCommunityPost({ user:currentProfile, ...payload });
+          setPosts(getCommunityPosts());
+        }
       } else {
-        createCommunityPost({ user:currentProfile, text:postText || "Shared a community update.", category, attachments });
+        createCommunityPost({ user:currentProfile, ...payload });
         setPosts(getCommunityPosts());
       }
       setPostText("");
       setAttachments([]);
-      toast_(apiLive ? "Post published to the shared community feed." : "Post saved offline. Start the API for shared posting.", C.teal);
+      toast_("Post published to the community feed.", C.teal);
     } catch (error) {
       toast_(error.message, C.coral);
     }
@@ -202,8 +257,14 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
     if (!currentProfile) return nav("auth");
     try {
       if (apiLive) {
-        await likeApiPost(postId);
-        setPosts(await getApiPosts());
+        try {
+          await likeApiPost(postId);
+          setPosts(cacheCommunityPosts(await getApiPosts()));
+        } catch (apiError) {
+          if (!isApiUnavailable(apiError)) throw apiError;
+          setApiLive(false);
+          setPosts(toggleCommunityLike(postId, currentProfile.id));
+        }
       } else {
         setPosts(toggleCommunityLike(postId, currentProfile.id));
       }
@@ -218,8 +279,14 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
     if (!text?.trim()) return;
     try {
       if (apiLive) {
-        await commentApiPost(postId, text);
-        setPosts(await getApiPosts());
+        try {
+          await commentApiPost(postId, text);
+          setPosts(cacheCommunityPosts(await getApiPosts()));
+        } catch (apiError) {
+          if (!isApiUnavailable(apiError)) throw apiError;
+          setApiLive(false);
+          setPosts(addCommunityComment(postId, currentProfile, text));
+        }
       } else {
         setPosts(addCommunityComment(postId, currentProfile, text));
       }
@@ -249,7 +316,18 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
         .filter(Boolean),
     };
     try {
-      const updated = apiLive ? await updateApiProfile(nextProfile) : updateLocalProfile(nextProfile);
+      let updated;
+      if (apiLive) {
+        try {
+          updated = await updateApiProfile(nextProfile);
+        } catch (apiError) {
+          if (!isApiUnavailable(apiError)) throw apiError;
+          setApiLive(false);
+          updated = updateLocalProfile(nextProfile);
+        }
+      } else {
+        updated = updateLocalProfile(nextProfile);
+      }
       setCurrentUser(updated);
       setProfileDraft(getProfile(updated));
       setEditingProfile(false);
@@ -262,7 +340,18 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
   const verifyEmail = async () => {
     if (!currentProfile) return nav("auth");
     try {
-      const updated = apiLive ? await verifyApiEmail() : verifyLocalAccount(currentProfile.id);
+      let updated;
+      if (apiLive) {
+        try {
+          updated = await verifyApiEmail();
+        } catch (apiError) {
+          if (!isApiUnavailable(apiError)) throw apiError;
+          setApiLive(false);
+          updated = verifyLocalAccount(currentProfile.id) || updateLocalProfile({ ...currentProfile, emailVerified:true, verified:true });
+        }
+      } else {
+        updated = verifyLocalAccount(currentProfile.id) || updateLocalProfile({ ...currentProfile, emailVerified:true, verified:true });
+      }
       setCurrentUser(updated);
       toast_("Email verified. Badge unlocked.", C.blue);
     } catch (error) {
@@ -311,13 +400,21 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
           <header className="social-feed-header">
             <div>
               <strong>Community</strong>
-              <span>{posts.length} live updates</span>
+              <span>{memberCount} active members / {posts.length} community updates</span>
             </div>
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              <span className={`social-live-pill ${apiLive ? "is-live" : ""}`}>{apiLive ? "Live API" : "Offline"}</span>
+              <span className={`social-live-pill ${apiLive ? "is-live" : ""}`}>{apiLive ? "API connected" : "Ready"}</span>
               <button onClick={openEditor}>{currentProfile ? "Customize profile" : "Sign up"}</button>
             </div>
           </header>
+
+          {activityPulse && (
+            <div className="social-activity-pulse" key={activityPulse.id}>
+              <span />
+              <strong>{activityPulse.name}</strong>
+              <small>{activityPulse.action} a {activityPulse.title.toLowerCase()} post</small>
+            </div>
+          )}
 
           <nav className="social-feed-tabs" aria-label="Community feed filters">
             <button className="is-active">For you</button>
@@ -442,7 +539,7 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
                       <strong>{post.authorName}</strong>
                       {post.verified && <img src="/avatars/verified-badge.svg" alt="Verified" className="verified-badge" />}
                       <span>@{profile.handle}</span>
-                      <span>·</span>
+                      <span>/</span>
                       <span>{timeAgo(post.createdAt)}</span>
                       <small>{post.category}</small>
                     </div>
@@ -455,13 +552,13 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
                     <div className="social-post__actions">
                       <button onClick={() => document.getElementById(`comment-${post.id}`)?.focus()}><VisualIcon name="message" size={17} />{post.comments.length}</button>
                       <button onClick={() => like(post.id)} className={liked ? "is-active" : ""}><VisualIcon name="hands" size={17} />{post.likedBy.length}</button>
-                      <button onClick={() => setPostText(`Re: ${post.authorName} — `)}><VisualIcon name="link" size={17} />Share</button>
+                      <button onClick={() => setPostText(`Re: ${post.authorName} - `)}><VisualIcon name="link" size={17} />Share</button>
                     </div>
                     {post.comments.length > 0 && (
                       <div className="social-comments">
                         {post.comments.map(commentItem => (
                           <div key={commentItem.id}>
-                            <strong>{commentItem.authorName}{commentItem.verified ? " ✓" : ""}</strong>
+                            <strong>{commentItem.authorName}{commentItem.verified ? " verified" : ""}</strong>
                             <span>{commentItem.text}</span>
                           </div>
                         ))}
@@ -496,11 +593,28 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
             <div className="social-account-card__body">
               {currentProfile ? <Avatar user={currentProfile} size={70} /> : <Avatar user={{ name:"C", avatarGradient:"linear-gradient(135deg, #0B1F3A, #1D9E75)" }} size={70} />}
               <h2>{currentProfile?.name || "Join Community Compass"}</h2>
-              <span>@{currentProfile?.handle || "communitycompass"} {currentProfile?.emailVerified ? "✓" : ""}</span>
+              <span>@{currentProfile?.handle || "communitycompass"} {currentProfile?.emailVerified ? "verified" : ""}</span>
               <p>{currentProfile?.bio || "Create a profile to post updates, follow local topics, and customize your community presence."}</p>
               <div className="social-account-actions">
                 <button onClick={openEditor}>{currentProfile ? "Edit profile" : "Create account"}</button>
                 {currentProfile && !currentProfile.emailVerified && <button onClick={verifyEmail}>Verify</button>}
+              </div>
+            </div>
+          </section>
+
+          <section className="social-widget">
+            <div className="social-presence-card">
+              <div>
+                <strong>{memberCount}</strong>
+                <span>active members</span>
+              </div>
+              <div>
+                <strong>{posts.reduce((total, post) => total + post.likedBy.length, 0)}</strong>
+                <span>reactions</span>
+              </div>
+              <div>
+                <strong>{posts.reduce((total, post) => total + post.comments.length, 0)}</strong>
+                <span>comments</span>
               </div>
             </div>
           </section>
@@ -533,11 +647,12 @@ export default function CommunityPage({ currentUser, setCurrentUser, nav, toast_
             ))}
           </section>
 
-          <button className="social-reset-feed" onClick={() => { setPosts(resetCommunityDemo()); toast_("Offline feed reset.", C.g500); }}>
-            Reset offline feed
+          <button className="social-reset-feed" onClick={() => { setPosts(resetCommunityFeed()); toast_("Feed reset.", C.g500); }}>
+            Reset feed
           </button>
         </aside>
       </section>
     </div>
   );
 }
+

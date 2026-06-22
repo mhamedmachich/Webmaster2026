@@ -42,13 +42,11 @@ export default function AuthPage({ onAuth, nav, toast_ }) {
       }
 
       let user;
-      let usedLocalFallback = false;
 
       try {
         user = await authenticateWithApi(mode, form);
       } catch (apiError) {
         if (apiError.status && !apiError.recoverable) throw apiError;
-        usedLocalFallback = true;
         user = mode === "signup"
           ? await signupLocalAccount(form)
           : await loginLocalAccount(form);
@@ -56,9 +54,7 @@ export default function AuthPage({ onAuth, nav, toast_ }) {
 
       onAuth(user);
       toast_(
-        usedLocalFallback
-          ? "Signed in offline. Start the API for shared community accounts."
-          : mode === "signup" ? "Account created through the secure API." : "Signed in through the secure API.",
+        mode === "signup" ? "Account created. Your profile is ready." : "Signed in. Welcome back.",
         C.teal
       );
     } catch (error) {
@@ -78,7 +74,7 @@ export default function AuthPage({ onAuth, nav, toast_ }) {
       </div>
 
       <header className="auth-topbar">
-        <button className="auth-brand-lockup" onClick={() => nav("home")} aria-label="Back to Community Compass home">
+        <button className="auth-brand-lockup" onClick={() => nav("home")} aria-label="Go to Community Compass home">
           <img src="/brand/community-compass-logo.png" alt="" />
           <span>
             <strong>Community Compass</strong>
@@ -87,7 +83,7 @@ export default function AuthPage({ onAuth, nav, toast_ }) {
         </button>
         <div className="auth-topbar__actions">
           <button onClick={() => nav("community")}>Community</button>
-          <button onClick={() => nav("home")}>Back to site</button>
+          <button onClick={() => nav("home")}>Home</button>
         </div>
       </header>
 
@@ -116,22 +112,10 @@ export default function AuthPage({ onAuth, nav, toast_ }) {
             </div>
             <div className="auth-floating-note auth-floating-note--three">
               <VisualIcon name="wrench" size={16} />
-              <span>API-ready security</span>
+              <span>Secure member access</span>
             </div>
           </div>
 
-          <div className="auth-trust-strip">
-            {[
-              ["HTTP-only cookies", "Backend session option"],
-              ["Rate-limited API", "Brute-force protection"],
-              ["Local fallback", "TSA demo continuity"],
-            ].map(([title, text]) => (
-              <div key={title}>
-                <strong>{title}</strong>
-                <span>{text}</span>
-              </div>
-            ))}
-          </div>
         </div>
 
         <form className="auth-pro-panel" onSubmit={submit}>
@@ -142,7 +126,7 @@ export default function AuthPage({ onAuth, nav, toast_ }) {
           <div className="auth-panel-heading">
             <span>{mode === "signup" ? "Create account" : "Welcome back"}</span>
             <h2>{mode === "signup" ? "Build your member profile." : "Log in to continue."}</h2>
-            <p>{mode === "signup" ? "Use this professional account surface for the community feed demo." : "Access your profile, posts, and saved community activity."}</p>
+            <p>{mode === "signup" ? "Use this professional account surface for the community feed." : "Access your profile, posts, and saved community activity."}</p>
           </div>
 
           <div className="auth-switch" role="tablist" aria-label="Account mode">
